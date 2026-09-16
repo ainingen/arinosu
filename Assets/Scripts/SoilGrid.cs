@@ -190,6 +190,31 @@ public class SoilGrid : MonoBehaviour
         return type == CellType.Air || type == CellType.Cavity;
     }
 
+    /// <summary>固体（アリが足をつけられるマス）か。世界の外は固体として扱う。</summary>
+    public bool IsSolid(int x, int y)
+    {
+        // 世界の上（空）だけは固体にしない。空にアリが張り付くのを防ぐ
+        if (y >= height) return false;
+        // 左右と下の外側は固体扱い。観察キットのガラス壁だと思えばよい
+        if (!IsInside(x, y)) return true;
+        CellType type = cells[y * width + x];
+        return type == CellType.Soil || type == CellType.Stone;
+    }
+
+    /// <summary>まわり8マスのどれかが固体か（アリが体を接していられるか）。</summary>
+    public bool HasSolidNeighbor(int x, int y)
+    {
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                if (dx == 0 && dy == 0) continue;
+                if (IsSolid(x + dx, y + dy)) return true;
+            }
+        }
+        return false;
+    }
+
     /// <summary>変更マスの一覧を空にする。描画側が描き終えたら呼ぶ。</summary>
     public void ClearDirty()
     {

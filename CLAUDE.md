@@ -25,6 +25,8 @@ Unity 6.3 LTS（Universal 2D）で制作する、クロオオアリの生態観�
   - ProjectSettings/
   - Packages/manifest.json
 - ファイルの削除はユーザーに依頼する（.meta が対で存在するため）
+- 確認用スクリーンショットは Assets の外（プロジェクト直下の Temp/ など）に保存し、
+  撮影したら保存先を報告する（Assets に置くとアセットとして取り込まれ、.meta ごと差分に入るため）
 
 ## 既知の注意点
 
