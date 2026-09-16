@@ -1,0 +1,58 @@
+# ---- Unity が生成するフォルダ（コミット不要）----
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Addressables / Asset Store が生成するもの
+/[Aa]ssets/AddressableAssetsData/*/*.bin*
+/[Aa]ssets/[Ss]treamingAssets/aa.meta
+/[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# ---- エディタ / IDE ----
+.vs/
+.vscode/
+.idea/
+.consulo/
+.vsconfig
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# ---- 自動生成されるソリューション / プロジェクトファイル ----
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.tmp
+*.pdb.meta
+*.mdb
+*.mdb.meta
+*.opendb
+*.VC.db
+
+# ---- ビルド成果物 ----
+ExportedObj/
+*.apk
+*.aab
+*.unitypackage
+*.app
+crashlytics-build.properties
+
+# ---- OS が作るファイル ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Unity のクラッシュレポート ----
+sysinfo.txt
