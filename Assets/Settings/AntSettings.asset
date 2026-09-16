@@ -64,6 +64,8 @@ MonoBehaviour:
   foodAmountMin: 30
   foodAmountMax: 80
   foodMinDistanceFromEntrance: 5
+  foodMinDiameter: 0.8
+  foodMaxDiameter: 1.6
   initialFoodCount: 1
   overlayRefreshInterval: 0.25
   debugPaintAmount: 2

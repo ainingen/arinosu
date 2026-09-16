@@ -40,6 +40,11 @@ public class GameClock : MonoBehaviour
     public int Day => startDay + (int)elapsedDays;
     /// <summary>その日のどこまで進んだか（0〜1）。</summary>
     public float DayProgress01 => (float)(elapsedDays - Math.Floor(elapsedDays));
+    /// <summary>
+    /// ゲーム内1日が、時間の速さ1倍で何秒に当たるか。
+    /// 「2日で空腹になる」のような日数の決めごとを、秒の計算に直すのに使う。
+    /// </summary>
+    public float SecondsPerDay => realSecondsPerDay;
     /// <summary>今の時（0〜23）。</summary>
     public int Hour => Mathf.Clamp((int)(DayProgress01 * 24f), 0, 23);
     /// <summary>今の分（0〜59）。</summary>

@@ -19,6 +19,8 @@ public class Ant : MonoBehaviour
     [SerializeField] private AntSettings settings;
     [SerializeField] private PheromoneField pheromones;
     [SerializeField] private NestField nestField;
+    [Tooltip("コロニー全体の値（採餌刺激）。未指定ならシーンから探す")]
+    [SerializeField] private Colony colony;
 
     [Header("移動の刻み")]
     [Tooltip("1回の計算で進む最大距離。1マス(0.2cm)の半分までなら壁をすり抜けない")]
@@ -41,8 +43,6 @@ public class Ant : MonoBehaviour
     [SerializeField] private AntCaste caste = AntCaste.WorkerMinor;
     [Tooltip("生まれてからの日数の初期値")]
     [SerializeField] private float startAgeDays = 10f;
-    [Tooltip("外勤寄りの度合い（0＝内勤、1＝外勤）。段階3cで閾値から決める")]
-    [SerializeField, Range(0f, 1f)] private float outdoorTendency = 0.5f;
 
     [Header("場所の見分け方")]
     [SerializeField] private int placeSampleRadius = 2;
@@ -67,7 +67,19 @@ public class Ant : MonoBehaviour
     private AntCarry carrying = AntCarry.None;
     private float perceptionAccum;
     private float timeOutside;
-    private float restTimer;
+
+    // ---- 社会胃と閾値（行動モデル.md 2章・4章・6章）----
+    /// <summary>社会胃の中身。1で満腹</summary>
+    private float crop = 1f;
+    /// <summary>仲間へ配るために持ち帰っている分</summary>
+    private float carryLoad;
+    /// <summary>Explore の閾値（腰の重さ）。学習で動く</summary>
+    private float theta = 0.5f;
+    private float metabolismTimer;
+    private float movedSinceMetabolism;
+    private float starveSeconds;
+    private float decisionTimer;
+    private bool isInNest = true;
     private float trailLostTimer;
     private float lastFollowProbability;
     private float circleSign = 1f;
@@ -78,8 +90,19 @@ public class Ant : MonoBehaviour
     public bool IsFalling => isFalling;
     public AntView View => view;
     public AntCaste Caste => caste;
-    public float OutdoorTendency => outdoorTendency;
     public AntCarry Carrying => carrying;
+    /// <summary>社会胃の中身（0〜1）。</summary>
+    public float Crop => crop;
+    /// <summary>空腹度（0〜1）。社会胃の裏返しで、別には持たない。</summary>
+    public float Hunger => 1f - crop;
+    /// <summary>仲間へ配るために持ち帰っている分。</summary>
+    public float CarryLoad => carryLoad;
+    /// <summary>Explore の閾値。低いほど外へ出やすい。</summary>
+    public float ExploreThreshold => theta;
+    /// <summary>巣の中にいるか（巣の匂いの濃さで決まる）。</summary>
+    public bool IsInNest => isInNest;
+    /// <summary>外勤寄りの度合い。閾値の裏返しで、情報パネルのゲージに出す。</summary>
+    public float OutdoorTendency => 1f - theta;
     /// <summary>道しるべをどれくらいたどっているか（0〜1）。段階3cの「気持ち」で使う。</summary>
     public float FollowProbability => lastFollowProbability;
     /// <summary>匂いが途切れたと感じている最中か。</summary>
@@ -139,6 +162,7 @@ public class Ant : MonoBehaviour
         if (view == null) view = GetComponent<AntView>();
         if (pheromones == null) pheromones = FindFirstObjectByType<PheromoneField>();
         if (nestField == null) nestField = FindFirstObjectByType<NestField>();
+        if (colony == null) colony = FindFirstObjectByType<Colony>();
         clock = FindFirstObjectByType<GameClock>();
         if (clock != null) bornAtElapsedDays = clock.ElapsedDays;
     }
@@ -161,9 +185,18 @@ public class Ant : MonoBehaviour
         direction = Rotate(Vector2.right, Random.Range(0f, 360f));
         circleSign = Random.value < 0.5f ? -1f : 1f;
 
-        // 個体ごとに知覚の時刻をずらす（全員が同じフレームで考えないように）
-        if (settings != null) perceptionAccum = Random.Range(0f, settings.perceptionInterval);
-        restTimer = settings != null ? Random.Range(0f, settings.restSeconds) : 0f;
+        // 個体ごとに知覚と判断の時刻をずらす（全員が同じフレームで考えないように）
+        if (settings != null)
+        {
+            perceptionAccum = Random.Range(0f, settings.perceptionInterval);
+            decisionTimer = Random.Range(0f, settings.decisionInterval);
+
+            // 開始時の社会胃をばらつかせる。全員が同時に空腹になって一斉に出るのを避ける
+            crop = Random.Range(settings.startCropMin, settings.startCropMax);
+
+            // 若いほど閾値が高い＝外へ出にくい。これが齢間分業になる
+            theta = Mathf.Clamp(1f - AgeDays / Mathf.Max(0.0001f, settings.matureDays), 0.15f, 0.95f);
+        }
 
         ApplyTransform(0f);
     }
@@ -181,6 +214,8 @@ public class Ant : MonoBehaviour
 
         PerceptionStep(deltaTime);
         float moved = MoveStep(deltaTime);
+        MetabolismStep(deltaTime, moved);
+        DecisionStep(deltaTime);
         ApplyTransform(deltaTime);
         if (view != null) view.UpdateGait(moved, deltaTime);
     }
@@ -207,6 +242,7 @@ public class Ant : MonoBehaviour
     {
         float nestHere = nestField != null ? nestField.Sample(position) : 0f;
         bool inside = nestHere >= settings.nestInside;
+        isInNest = inside;
 
         switch (task)
         {
@@ -233,13 +269,72 @@ public class Ant : MonoBehaviour
         SteerAlongNest(tickTime, true, settings.homingBias);
         AddWanderNoise(tickTime, settings.wanderSigma);
 
-        restTimer -= tickTime;
-        if (restTimer > 0f) return;
+        // 外へ出るかどうかは DecisionStep（反応閾値）が決める
+    }
 
-        // 段階3cでは、ここが反応閾値の判定に置き換わる
-        task = AntTask.Explore;
-        timeOutside = 0f;
-        targetFood = null;
+    /// <summary>
+    /// 社会胃を減らす（行動モデル.md 4章）。
+    /// 動いているほうが多く減る。空っぽのまま続くと餓死する。
+    /// </summary>
+    private void MetabolismStep(float deltaTime, float movedDistance)
+    {
+        metabolismTimer += deltaTime;
+        movedSinceMetabolism += movedDistance;
+
+        float interval = Mathf.Max(0.0001f, settings.metabolismInterval);
+        if (metabolismTimer < interval) return;
+
+        float elapsed = metabolismTimer;
+        metabolismTimer = 0f;
+
+        float secondsPerDay = clock != null ? clock.SecondsPerDay : 300f;
+        float drainPerSecond = 1f / Mathf.Max(0.0001f, settings.fullToEmptyDays * secondsPerDay);
+        bool moving = movedSinceMetabolism > 0.01f;
+        movedSinceMetabolism = 0f;
+
+        crop = Mathf.Clamp01(crop - drainPerSecond * elapsed * (moving ? settings.movingMetabolism : 1f));
+
+        if (crop > 0f)
+        {
+            starveSeconds = 0f;
+            return;
+        }
+
+        // 空っぽのまま一定の日数が過ぎたら死ぬ（死体の扱いは段階6）
+        starveSeconds += elapsed;
+        if (starveSeconds >= settings.starveDays * secondsPerDay) Destroy(gameObject);
+    }
+
+    /// <summary>
+    /// 仕事を選び直す（行動モデル.md 6章の反応閾値モデル）。
+    /// 巣の中で休んでいるときだけ、外へ出るかを確率で決める。
+    /// </summary>
+    private void DecisionStep(float deltaTime)
+    {
+        decisionTimer -= deltaTime;
+        if (decisionTimer > 0f) return;
+        decisionTimer = Mathf.Max(0.0001f, settings.decisionInterval);
+
+        if (task != AntTask.RestInNest) return;
+
+        float stimulus = colony != null ? colony.ForageStimulus : 0f;
+        float probability = stimulus > 0f
+            ? (stimulus * stimulus) / (stimulus * stimulus + theta * theta)
+            : 0f;
+
+        if (Random.value < probability)
+        {
+            // 外へ出た。次はもう少し出やすくなる
+            task = AntTask.Explore;
+            timeOutside = 0f;
+            targetFood = null;
+            theta = Mathf.Clamp(theta - settings.thetaLearn, settings.thetaMin, settings.thetaMax);
+        }
+        else
+        {
+            // 出なかった。少しずつ腰が重くなる
+            theta = Mathf.Clamp(theta + settings.thetaForget, settings.thetaMin, settings.thetaMax);
+        }
     }
 
     /// <summary>外を探す。</summary>
@@ -325,6 +420,11 @@ public class Ant : MonoBehaviour
             targetFood = null;
             return;
         }
+        // その場で社会胃を満たし、さらに仲間へ配る分を持って帰る（行動モデル.md 4章）
+        crop = 1f;
+        starveSeconds = 0f;
+        carryLoad = settings.carryLoad;
+
         carrying = AntCarry.Food;
         task = AntTask.ReturnWithFood;
         targetFood = null;
@@ -348,10 +448,11 @@ public class Ant : MonoBehaviour
     /// <summary>巣に着いた。</summary>
     private void Arrive()
     {
-        // 段階3cでは、ここで社会胃に入れて仲間へ配り始める
         carrying = AntCarry.None;
+        // 段階3c-2で、この持ち帰った分を巣の仲間へ口移しで配る。
+        // それまでは配る相手がいないので、ここで手放す
+        carryLoad = 0f;
         task = AntTask.RestInNest;
-        restTimer = settings.restSeconds;
         timeOutside = 0f;
         lastFollowProbability = 0f;
     }

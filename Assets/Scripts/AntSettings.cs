@@ -77,16 +77,15 @@ public class AntSettings : ScriptableObject
     [Tooltip("匂いが途切れたときに小さく円を描く旋回の速さ（度/秒）")]
     public float circleTurnGain = 120f;
 
-    [Header("巣での休み（段階3cで反応閾値の判定に置き換える）")]
-    [Tooltip("巣に帰り着いてから、また外へ出るまでの時間（秒）")]
-    public float restSeconds = 5f;
-
     [Header("移動")]
     public float walkSpeed = 2f;
     public float turnSpeed = 540f;
     public float fallSpeed = 5f;
 
     [Header("社会胃")]
+    [Tooltip("開始時の社会胃の中身（この範囲でばらつかせる）。一斉に空腹・一斉に出発になるのを避ける")]
+    [Range(0f, 1f)] public float startCropMin = 0.5f;
+    [Range(0f, 1f)] public float startCropMax = 1f;
     [Tooltip("満腹から空腹になるまでの日数")]
     public float fullToEmptyDays = 2f;
     [Tooltip("動いているときの消費の倍率")]
@@ -119,6 +118,10 @@ public class AntSettings : ScriptableObject
     [Range(0f, 1f)] public float thetaMax = 0.95f;
     [Tooltip("入口付近の道しるべが採餌刺激に加わる強さ")]
     public float trailStimulusWeight = 0.5f;
+    [Tooltip("入口付近の道しるべを見る範囲（マス）")]
+    public int trailStimulusRadius = 3;
+    [Tooltip("コロニー全体の値（採餌刺激など）を計算し直す間隔（秒）")]
+    public float colonyUpdateInterval = 1f;
 
     [Header("餌")]
     [Tooltip("1日あたりに現れる餌の平均個数")]
