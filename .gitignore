@@ -14,6 +14,12 @@
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
+# ビルドのたびに Performance Testing パッケージ（URP・2D Animation の依存）が
+# 書き出す一時ファイル。正常にビルドが終われば自動で消えるが、
+# 中断されたときに残るので除外しておく。
+# Assets/Resources.meta は除外しない（自前の Resources を作ったときに見落とすため）
+/[Aa]ssets/Resources/PerformanceTestRun*.json*
+
 # ---- エディタ / IDE ----
 .vs/
 .vscode/
