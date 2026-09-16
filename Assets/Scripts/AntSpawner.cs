@@ -20,16 +20,14 @@ public class AntSpawner : MonoBehaviour
     [SerializeField] private int workerCount = 50;
     [Tooltip("巣の中のどのあたりに出すか。この濃さ以上の空洞を選ぶ")]
     [SerializeField, Range(0f, 1f)] private float minNestValue = 0.85f;
-    [Tooltip("置ける場所を探す試行回数（1匹あたり）")]
-    [SerializeField] private int placementTries = 40;
 
-    [Header("デバッグ")]
-    [Tooltip("Shift＋7 でまとめて増やせるようにする（性能を測るとき用）")]
+    [Header("デバッグ（負荷試験用）")]
+    [Tooltip("Shift＋7 でまとめて増やせるようにする")]
     [SerializeField] private bool allowDebugSpawnKey = true;
     [Tooltip("Shift＋7 を1回押すと何匹増やすか")]
     [SerializeField] private int debugSpawnBatch = 50;
-    [Tooltip("これ以上は増やさない")]
-    [SerializeField] private int debugSpawnLimit = 400;
+    [Tooltip("この数まで増やせる（これ以上は増えない）")]
+    [SerializeField] private int debugSpawnLimit = 1000;
 
     [Header("個体差")]
     [Tooltip("日齢のばらつき（日）")]
@@ -86,36 +84,56 @@ public class AntSpawner : MonoBehaviour
         return ant;
     }
 
-    /// <summary>巣の中の、歩ける場所を探す。</summary>
-    private bool FindSpawnPosition(out Vector2 position)
+    /// <summary>巣の中の、出せるマスの一覧。地形が変わったときだけ作り直す。</summary>
+    private readonly System.Collections.Generic.List<int> spawnCells = new System.Collections.Generic.List<int>();
+    private int spawnCellsVersion = -1;
+
+    /// <summary>
+    /// 出せるマスを集め直す。
+    /// 巣の空洞はグリッド全体から見ればごく一部なので、
+    /// 場所をランダムに引いて試すやり方だと、まとめて出すときにほとんど外れてしまう。
+    /// 先に候補を集めておき、そこから選ぶ。
+    /// </summary>
+    private void RefreshSpawnCells()
     {
-        position = Vector2.zero;
+        spawnCellsVersion = grid.Version;
+        spawnCells.Clear();
 
-        for (int attempt = 0; attempt < placementTries; attempt++)
-        {
-            int x = Random.Range(0, grid.Width);
-            int y = Random.Range(0, grid.SurfaceRow);
-
-            if (grid.GetCell(x, y) != CellType.Cavity) continue;
-            if (!grid.HasSolidNeighbor(x, y)) continue;
-            if (nestField != null && nestField.GetAt(x, y) < minNestValue) continue;
-
-            position = grid.CellToWorld(x, y);
-            return true;
-        }
-
-        // 見つからなければ、空洞ならどこでもよい
         for (int y = 0; y < grid.SurfaceRow; y++)
         {
             for (int x = 0; x < grid.Width; x++)
             {
                 if (grid.GetCell(x, y) != CellType.Cavity) continue;
                 if (!grid.HasSolidNeighbor(x, y)) continue;
-                position = grid.CellToWorld(x, y);
-                return true;
+                if (nestField != null && nestField.GetAt(x, y) < minNestValue) continue;
+                spawnCells.Add(y * grid.Width + x);
             }
         }
 
-        return false;
+        if (spawnCells.Count > 0) return;
+
+        // 条件に合う場所がなければ、空洞ならどこでもよいことにする
+        for (int y = 0; y < grid.SurfaceRow; y++)
+        {
+            for (int x = 0; x < grid.Width; x++)
+            {
+                if (grid.GetCell(x, y) != CellType.Cavity) continue;
+                if (!grid.HasSolidNeighbor(x, y)) continue;
+                spawnCells.Add(y * grid.Width + x);
+            }
+        }
+    }
+
+    /// <summary>巣の中の、歩ける場所をひとつ選ぶ。</summary>
+    private bool FindSpawnPosition(out Vector2 position)
+    {
+        position = Vector2.zero;
+
+        if (spawnCellsVersion != grid.Version) RefreshSpawnCells();
+        if (spawnCells.Count == 0) return false;
+
+        int index = spawnCells[Random.Range(0, spawnCells.Count)];
+        position = grid.CellToWorld(index % grid.Width, index / grid.Width);
+        return true;
     }
 }

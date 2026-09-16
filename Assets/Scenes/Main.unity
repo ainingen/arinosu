@@ -940,10 +940,9 @@ MonoBehaviour:
   antParent: {fileID: 0}
   workerCount: 50
   minNestValue: 0.85
-  placementTries: 40
   allowDebugSpawnKey: 1
   debugSpawnBatch: 50
-  debugSpawnLimit: 400
+  debugSpawnLimit: 1000
   ageMinDays: 1
   ageMaxDays: 30
 --- !u!1 &1415906912
