@@ -72,10 +72,16 @@ public class AntSettings : ScriptableObject
     [Header("探索")]
     [Tooltip("餌に気づく範囲（cm）")]
     public float foodSenseRange = 1.5f;
-    [Tooltip("これだけ外にいて何も見つからなければ空手で帰る（ゲーム内分）")]
-    public float giveUpMinutes = 20f;
+    [Tooltip("これだけ外にいて何も見つからなければ空手で帰る（秒。フェロモンの半減期と同じ時計）")]
+    public float giveUpSeconds = 90f;
+    [Tooltip("匂いが途切れたときに小さく円を描く旋回の速さ（度/秒）")]
+    public float circleTurnGain = 120f;
 
-    [Header("移動（段階3bで Ant に効かせる）")]
+    [Header("巣での休み（段階3cで反応閾値の判定に置き換える）")]
+    [Tooltip("巣に帰り着いてから、また外へ出るまでの時間（秒）")]
+    public float restSeconds = 5f;
+
+    [Header("移動")]
     public float walkSpeed = 2f;
     public float turnSpeed = 540f;
     public float fallSpeed = 5f;
@@ -120,8 +126,12 @@ public class AntSettings : ScriptableObject
     [Tooltip("餌1個の残量（アリ何匹分か）")]
     public int foodAmountMin = 3;
     public int foodAmountMax = 8;
-    [Tooltip("巣の入口からこれだけ離れた場所に出す（cm）")]
+    [Tooltip("巣の入口からこれだけ離れた場所に出す（cm）。自動で出るぶんも F5 の手置きも同じ値を見る")]
     public float foodMinDistanceFromEntrance = 5f;
+    [Tooltip("餌の最小の直径（cm）。残量が減ってもこれより小さくしない")]
+    public float foodMinDiameter = 0.8f;
+    [Tooltip("餌の最大の直径（cm）")]
+    public float foodMaxDiameter = 1.6f;
     [Tooltip("開始時に置いておく餌の数")]
     public int initialFoodCount = 1;
 

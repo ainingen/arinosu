@@ -51,6 +51,14 @@ public class FieldDebugOverlay : MonoBehaviour
     /// <summary>今の重ね表示。</summary>
     public OverlayMode Mode => mode;
 
+    /// <summary>餌の残量の数字を出すか。道しるべの重ね表示（F1）と一緒に切り替わる。</summary>
+    public static bool ShowFoodAmounts { get; private set; }
+
+    private void OnDisable()
+    {
+        ShowFoodAmounts = false;
+    }
+
     private void Awake()
     {
         if (grid == null) grid = FindFirstObjectByType<SoilGrid>();
@@ -159,6 +167,7 @@ public class FieldDebugOverlay : MonoBehaviour
     private void ApplyVisibility()
     {
         if (overlayRenderer != null) overlayRenderer.enabled = mode != OverlayMode.None;
+        ShowFoodAmounts = mode == OverlayMode.Trail;
         if (!showSensors)
         {
             if (sensorLeft != null) sensorLeft.gameObject.SetActive(false);

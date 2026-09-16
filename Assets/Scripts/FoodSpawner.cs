@@ -1,5 +1,20 @@
 using UnityEngine;
 
+/// <summary>餌を置こうとした結果。</summary>
+public enum FoodPlacementResult
+{
+    /// <summary>置けた</summary>
+    Ok,
+    /// <summary>世界の外</summary>
+    OutsideWorld,
+    /// <summary>巣の入口に近すぎる</summary>
+    TooCloseToEntrance,
+    /// <summary>その列に地面がない</summary>
+    NoGround,
+    /// <summary>準備ができていない（参照が足りない）</summary>
+    NotReady,
+}
+
 /// <summary>
 /// 餌を地表に出す（行動モデル.md 5章）。
 /// 平均して1日に foodPerDay 個。出る間隔は指数分布なので、固まったり空いたりする。
@@ -79,15 +94,63 @@ public class FoodSpawner : MonoBehaviour
             Vector2 position = grid.CellToWorld(x, groundY);
             if (hasEntrance && Mathf.Abs(position.x - entrance.x) < minDistance) continue;
 
-            FoodSource food = Instantiate(foodPrefab, position, Quaternion.identity, foodParent);
-            food.Setup(Random.Range(settings.foodAmountMin, settings.foodAmountMax + 1));
-            return food;
+            return Create(x, groundY);
         }
 
         return null;
     }
 
-    /// <summary>その列の地面の上（餌を置けるマス）を探す。見つからなければ -1。</summary>
+    /// <summary>
+    /// 指定した場所の列の地表面に餌を置く（デバッグの F5 で使う）。
+    /// クリックの高さは見ない。その列の土のいちばん上の、すぐ上の空気マスへ吸着させる。
+    /// 断るのは巣の入口に近すぎるときだけ。
+    /// </summary>
+    public FoodSource SpawnAt(Vector2 worldPosition, out FoodPlacementResult result)
+    {
+        if (grid == null || foodPrefab == null || settings == null)
+        {
+            result = FoodPlacementResult.NotReady;
+            return null;
+        }
+
+        int x, y;
+        if (!grid.WorldToCell(worldPosition, out x, out y))
+        {
+            result = FoodPlacementResult.OutsideWorld;
+            return null;
+        }
+
+        if (nestField != null && nestField.HasEntrance
+            && Mathf.Abs(worldPosition.x - nestField.EntranceWorld.x) < settings.foodMinDistanceFromEntrance)
+        {
+            result = FoodPlacementResult.TooCloseToEntrance;
+            return null;
+        }
+
+        int groundY = FindGroundTop(x);
+        if (groundY < 0)
+        {
+            result = FoodPlacementResult.NoGround;
+            return null;
+        }
+
+        result = FoodPlacementResult.Ok;
+        return Create(x, groundY);
+    }
+
+    /// <summary>マスを決めて餌を作る。</summary>
+    private FoodSource Create(int x, int groundY)
+    {
+        Vector2 position = grid.CellToWorld(x, groundY);
+        FoodSource food = Instantiate(foodPrefab, position, Quaternion.identity, foodParent);
+        food.Setup(Random.Range(settings.foodAmountMin, settings.foodAmountMax + 1), settings);
+        return food;
+    }
+
+    /// <summary>
+    /// その列の地表面（土のいちばん上のすぐ上の空気マス）を探す。見つからなければ -1。
+    /// 上から下へ見ていくので、クリックした高さには左右されない。
+    /// </summary>
     private int FindGroundTop(int x)
     {
         for (int y = grid.Height - 2; y >= 0; y--)

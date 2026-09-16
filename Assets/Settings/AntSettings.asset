@@ -20,7 +20,7 @@ MonoBehaviour:
   trailHalfLife: 60
   trailDiffusion: 0.05
   depositTrail: 1
-  trailMax: 10
+  trailMax: 30
   alarmHalfLife: 10
   alarmDiffusion: 0.2
   alarmMax: 10
@@ -39,7 +39,9 @@ MonoBehaviour:
   homingBias: 10
   trailLostDuration: 3
   foodSenseRange: 1.5
-  giveUpMinutes: 20
+  giveUpSeconds: 90
+  circleTurnGain: 120
+  restSeconds: 5
   walkSpeed: 2
   turnSpeed: 540
   fallSpeed: 5
@@ -59,8 +61,8 @@ MonoBehaviour:
   thetaMax: 0.95
   trailStimulusWeight: 0.5
   foodPerDay: 1
-  foodAmountMin: 3
-  foodAmountMax: 8
+  foodAmountMin: 30
+  foodAmountMax: 80
   foodMinDistanceFromEntrance: 5
   initialFoodCount: 1
   overlayRefreshInterval: 0.25

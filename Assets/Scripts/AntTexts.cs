@@ -7,6 +7,14 @@ public enum AntTask
     Fall,
     /// <summary>休んでいる</summary>
     Rest,
+    /// <summary>巣の中にいる（行動モデル.md 6章）</summary>
+    RestInNest,
+    /// <summary>外を探している</summary>
+    Explore,
+    /// <summary>餌を持って帰っている</summary>
+    ReturnWithFood,
+    /// <summary>空手で帰っている</summary>
+    ReturnEmpty,
     /// <summary>採餌</summary>
     Forage,
     /// <summary>幼虫の世話</summary>
@@ -99,6 +107,10 @@ public static class AntTexts
             case AntTask.Wander: return "うろついている";
             case AntTask.Fall: return "落ちている";
             case AntTask.Rest: return "休んでいる";
+            case AntTask.RestInNest: return "巣の中にいる";
+            case AntTask.Explore: return "餌を探している";
+            case AntTask.ReturnWithFood: return "餌を持ち帰っている";
+            case AntTask.ReturnEmpty: return "巣へ戻っている";
             case AntTask.Forage: return "採餌中";
             case AntTask.Nurse: return "幼虫の世話";
             case AntTask.Dig: return "掘削中";

@@ -50,8 +50,8 @@ public class AntSelector : MonoBehaviour
             return;
         }
 
-        // デバッグ塗りモード中は左ドラッグを塗りに使うので、選択は止める
-        if (DebugPaintTool.PaintModeActive) return;
+        // デバッグ操作中は左クリックをそちらに使うので、選択は止める
+        if (DebugPaintTool.AnyModeActive) return;
 
         Mouse mouse = Mouse.current;
         if (mouse == null || targetCamera == null) return;

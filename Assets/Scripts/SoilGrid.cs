@@ -215,9 +215,10 @@ public class SoilGrid : MonoBehaviour
     /// <summary>固体（アリが足をつけられるマス）か。世界の外は固体として扱う。</summary>
     public bool IsSolid(int x, int y)
     {
-        // 世界の上（空）だけは固体にしない。空にアリが張り付くのを防ぐ
-        if (y >= height) return false;
-        // 左右と下の外側は固体扱い。観察キットのガラス壁だと思えばよい
+        // 地表より上の外側は固体にしない。
+        // ここを固体にすると、世界の左右の端に沿ってアリが空へ登っていってしまう
+        if (y >= surfaceRow && !IsInside(x, y)) return false;
+        // 地中の左右と下の外側は固体扱い。観察キットのガラス壁だと思えばよい
         if (!IsInside(x, y)) return true;
         CellType type = GetCell(x, y);
         return type == CellType.Soil || type == CellType.Stone;
