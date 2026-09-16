@@ -80,6 +80,17 @@ public class Ant : MonoBehaviour
     private float starveSeconds;
     private float decisionTimer;
     private bool isInNest = true;
+    /// <summary>今いる場所の巣の匂いの濃さ（知覚tickで更新）。</summary>
+    private float nestHere;
+
+    // ---- 口移し（行動モデル.md 4章）----
+    private Ant sharePartner;
+    private bool isGiver;
+    private float shareRemaining;
+    private float shareRate;
+
+    /// <summary>興奮度。警報フェロモンで上がる（段階6で本格化）。</summary>
+    private float alarm;
     private float trailLostTimer;
     private float lastFollowProbability;
     private float circleSign = 1f;
@@ -101,6 +112,10 @@ public class Ant : MonoBehaviour
     public float ExploreThreshold => theta;
     /// <summary>巣の中にいるか（巣の匂いの濃さで決まる）。</summary>
     public bool IsInNest => isInNest;
+    /// <summary>今、仲間と口移しの最中か。</summary>
+    public bool IsSharing => sharePartner != null;
+    /// <summary>興奮度（0〜1）。</summary>
+    public float Alarm => alarm;
     /// <summary>外勤寄りの度合い。閾値の裏返しで、情報パネルのゲージに出す。</summary>
     public float OutdoorTendency => 1f - theta;
     /// <summary>道しるべをどれくらいたどっているか（0〜1）。段階3cの「気持ち」で使う。</summary>
@@ -122,14 +137,25 @@ public class Ant : MonoBehaviour
     /// <summary>今やっている仕事。</summary>
     public AntTask CurrentTask => isFalling ? AntTask.Fall : task;
 
-    /// <summary>気持ち。段階3cで7章の順に差し替える。</summary>
+    /// <summary>
+    /// 気持ち（行動モデル.md 7章）。上から順に見て、最初に当てはまったものを返す。
+    /// 感情の変数は持たず、内部状態をそのまま言葉に訳しているだけ。
+    /// </summary>
     public AntMood CurrentMood
     {
         get
         {
+            if (settings == null) return AntMood.Calm;
+
+            if (alarm > settings.moodAlarmThreshold) return AntMood.Alarmed;
+            if (Hunger > settings.moodHungryThreshold) return AntMood.Hungry;
             if (trailLostTimer > 0f) return AntMood.TrailLost;
             if (task == AntTask.ReturnWithFood) return AntMood.CarryingFood;
-            if (isFalling) return AntMood.Alarmed;
+            // 巣の外にいて、巣の匂いがほとんど届いていない
+            if (!isInNest && nestHere < settings.nestFar) return AntMood.FarFromNest;
+            if (task == AntTask.Explore && lastFollowProbability > settings.moodFollowThreshold) return AntMood.FollowingTrail;
+            if (task == AntTask.Explore) return AntMood.Searching;
+            if (sharePartner != null) return AntMood.Sharing;
             return AntMood.Calm;
         }
     }
@@ -175,6 +201,8 @@ public class Ant : MonoBehaviour
     private void OnDisable()
     {
         all.Remove(this);
+        // 交換の途中で消えたら、相手を解放しておく
+        EndShare();
     }
 
     private void Start()
@@ -212,12 +240,24 @@ public class Ant : MonoBehaviour
             return;
         }
 
+        if (alarm > 0f) alarm = Mathf.Max(0f, alarm - settings.alarmDecayPerSecond * deltaTime);
+
         PerceptionStep(deltaTime);
-        float moved = MoveStep(deltaTime);
+
+        // 口移しの最中は、両方とも止まって触角を震わせる
+        float moved = 0f;
+        if (sharePartner != null) ShareStep(deltaTime);
+        else moved = MoveStep(deltaTime);
+
         MetabolismStep(deltaTime, moved);
         DecisionStep(deltaTime);
         ApplyTransform(deltaTime);
-        if (view != null) view.UpdateGait(moved, deltaTime);
+
+        if (view != null)
+        {
+            view.SetAntennating(sharePartner != null);
+            view.UpdateGait(moved, deltaTime);
+        }
     }
 
     // ============================================================
@@ -240,7 +280,7 @@ public class Ant : MonoBehaviour
 
     private void Perceive(float tickTime)
     {
-        float nestHere = nestField != null ? nestField.Sample(position) : 0f;
+        nestHere = nestField != null ? nestField.Sample(position) : 0f;
         bool inside = nestHere >= settings.nestInside;
         isInNest = inside;
 
@@ -266,10 +306,127 @@ public class Ant : MonoBehaviour
     private void RestInNestStep(float tickTime, bool inside)
     {
         timeOutside = 0f;
+        // 交換中は動かない
+        if (sharePartner != null) return;
+
+        // 触れられる距離に仲間がいて、持ち分に差があれば口移しが始まる
+        if (TryStartSharing()) return;
+
+        // 空腹なら、いちばん近い仲間へ寄っていく（相手の中身は知らない。触れて差があれば流れる）
+        if (Hunger > settings.begThreshold && colony != null)
+        {
+            Ant nearest = colony.FindNearestNestmate(this, settings.begSearchRange);
+            if (nearest != null)
+            {
+                Vector2 toNeighbor = nearest.Position - position;
+                if (toNeighbor.sqrMagnitude > 0f) direction = toNeighbor.normalized;
+                AddWanderNoise(tickTime, settings.wanderSigma * 0.3f);
+                return;
+            }
+        }
+
         SteerAlongNest(tickTime, true, settings.homingBias);
         AddWanderNoise(tickTime, settings.wanderSigma);
 
         // 外へ出るかどうかは DecisionStep（反応閾値）が決める
+    }
+
+    // ---- 口移し（行動モデル.md 4章）----
+
+    /// <summary>触れられる距離の仲間と、持ち分に差があれば口移しを始める。</summary>
+    private bool TryStartSharing()
+    {
+        if (colony == null) return false;
+
+        Ant other = colony.FindNearestNestmate(this, settings.contactRange);
+        if (other == null || other.sharePartner != null || !other.isInNest) return false;
+
+        // 「自分の持ち分」と「相手の社会胃」を比べて、多いほうが渡す側になる
+        float myTotal = crop + carryLoad;
+        float otherTotal = other.crop + other.carryLoad;
+
+        if (myTotal - other.crop >= settings.shareThreshold)
+        {
+            BeginShare(this, other, (myTotal - other.crop) * 0.5f);
+            return true;
+        }
+        if (otherTotal - crop >= settings.shareThreshold)
+        {
+            BeginShare(other, this, (otherTotal - crop) * 0.5f);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>渡す側と受け取る側を決めて、口移しを始める。</summary>
+    private static void BeginShare(Ant giver, Ant taker, float amount)
+    {
+        giver.sharePartner = taker;
+        giver.isGiver = true;
+        giver.shareRemaining = amount;
+        giver.shareRate = amount / Mathf.Max(0.0001f, giver.settings.shareSeconds);
+
+        taker.sharePartner = giver;
+        taker.isGiver = false;
+    }
+
+    /// <summary>口移しを少しずつ進める。渡す側だけが中身を動かす。</summary>
+    private void ShareStep(float deltaTime)
+    {
+        if (sharePartner == null) return;
+
+        // 相手が死んだ、巣の外へ出た、離れた などで続けられなくなったら終わり
+        if (sharePartner.sharePartner != this || !isInNest || !sharePartner.isInNest
+            || (sharePartner.Position - position).sqrMagnitude > settings.contactRange * settings.contactRange * 4f)
+        {
+            EndShare();
+            return;
+        }
+
+        if (!isGiver) return;   // 受け取る側は止まっているだけ
+
+        float amount = Mathf.Min(shareRemaining, shareRate * deltaTime);
+        if (amount <= 0f)
+        {
+            EndShare();
+            return;
+        }
+
+        // 持ち帰った分を先に使い、足りなければ自分の社会胃から出す
+        float fromLoad = Mathf.Min(carryLoad, amount);
+        carryLoad -= fromLoad;
+        float fromCrop = Mathf.Min(crop, amount - fromLoad);
+        crop -= fromCrop;
+
+        float given = fromLoad + fromCrop;
+        if (given <= 0f)
+        {
+            EndShare();
+            return;
+        }
+
+        sharePartner.ReceiveShare(given);
+        shareRemaining -= given;
+        if (shareRemaining <= 0f) EndShare();
+    }
+
+    /// <summary>口移しで受け取る。</summary>
+    private void ReceiveShare(float amount)
+    {
+        crop = Mathf.Clamp01(crop + amount);
+        starveSeconds = 0f;
+    }
+
+    /// <summary>口移しを終える（両方の状態を戻す）。</summary>
+    private void EndShare()
+    {
+        if (sharePartner != null && sharePartner.sharePartner == this)
+        {
+            sharePartner.sharePartner = null;
+            sharePartner.shareRemaining = 0f;
+        }
+        sharePartner = null;
+        shareRemaining = 0f;
     }
 
     /// <summary>
@@ -316,6 +473,7 @@ public class Ant : MonoBehaviour
         decisionTimer = Mathf.Max(0.0001f, settings.decisionInterval);
 
         if (task != AntTask.RestInNest) return;
+        if (sharePartner != null) return;   // 分け合っている最中は出発しない
 
         float stimulus = colony != null ? colony.ForageStimulus : 0f;
         float probability = stimulus > 0f
@@ -449,9 +607,8 @@ public class Ant : MonoBehaviour
     private void Arrive()
     {
         carrying = AntCarry.None;
-        // 段階3c-2で、この持ち帰った分を巣の仲間へ口移しで配る。
-        // それまでは配る相手がいないので、ここで手放す
-        carryLoad = 0f;
+        // 持ち帰った分（carryLoad）はそのまま持っている。
+        // 巣の中で出会った仲間へ、口移しで配っていく
         task = AntTask.RestInNest;
         timeOutside = 0f;
         lastFollowProbability = 0f;

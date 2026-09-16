@@ -69,6 +69,12 @@ public enum AntMood
     CarryingFood,
     /// <summary>寒い</summary>
     Cold,
+    /// <summary>道しるべをたどっている</summary>
+    FollowingTrail,
+    /// <summary>餌を探している</summary>
+    Searching,
+    /// <summary>栄養交換中</summary>
+    Sharing,
 }
 
 /// <summary>
@@ -169,6 +175,9 @@ public static class AntTexts
             case AntMood.Alarmed: return "何かがおかしい。落ち着かない";
             case AntMood.CarryingFood: return "これを巣へ持ち帰る";
             case AntMood.Cold: return "寒い。深いところへ行きたい";
+            case AntMood.FollowingTrail: return "匂いをたどっている";
+            case AntMood.Searching: return "餌を探している";
+            case AntMood.Sharing: return "分け合っている";
             case AntMood.Calm: return "今は穏やかだ";
             default: return string.Empty;
         }

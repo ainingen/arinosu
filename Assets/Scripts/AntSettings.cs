@@ -104,8 +104,22 @@ public class AntSettings : ScriptableObject
     public float shareSeconds = 2f;
     [Tooltip("これより空腹なら仲間にねだる")]
     public float begThreshold = 0.6f;
+    [Tooltip("ねだる相手を探す範囲（cm）")]
+    public float begSearchRange = 6f;
     [Tooltip("近くのアリを探すときのマスの大きさ（cm）")]
     public float neighborCellSize = 2f;
+
+    [Header("興奮（段階6で本格化）")]
+    [Tooltip("1秒あたりに興奮が冷める量")]
+    public float alarmDecayPerSecond = 0.2f;
+
+    [Header("気持ちの判定（行動モデル.md 7章）")]
+    [Tooltip("これより興奮していたら「何かがおかしい」")]
+    [Range(0f, 1f)] public float moodAlarmThreshold = 0.5f;
+    [Tooltip("これより空腹なら「お腹がすいた」")]
+    [Range(0f, 1f)] public float moodHungryThreshold = 0.8f;
+    [Tooltip("たどる確率がこれを超えていたら「匂いをたどっている」")]
+    [Range(0f, 1f)] public float moodFollowThreshold = 0.5f;
 
     [Header("反応閾値モデル")]
     [Tooltip("この日齢で閾値が下限に近づく")]

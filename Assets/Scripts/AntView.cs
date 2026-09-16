@@ -29,6 +29,10 @@ public class AntView : MonoBehaviour
     [SerializeField] private bool animateAntennae = true;
     [SerializeField] private float antennaSwingAngle = 8f;
     [SerializeField] private float antennaSwingSpeed = 3f;
+    [Tooltip("口移しのときに触角を震わせる強さ（振り角の倍率）")]
+    [SerializeField] private float antennatingAngleScale = 2.2f;
+    [Tooltip("口移しのときの震える速さ（倍率）")]
+    [SerializeField] private float antennatingSpeedScale = 5f;
 
     private SpriteRenderer[] renderers;
     /// <summary>各パーツの最初の角度。ここを基準に振る。</summary>
@@ -43,6 +47,7 @@ public class AntView : MonoBehaviour
     private float gaitPhase;
     private float antennaPhase;
     private bool isSelected;
+    private bool isAntennating;
 
     /// <summary>選択されているか。</summary>
     public bool IsSelected => isSelected;
@@ -85,6 +90,15 @@ public class AntView : MonoBehaviour
         return angles;
     }
 
+    /// <summary>
+    /// 口移しの最中かどうかを伝える。触角の震えが速く大きくなる。
+    /// 演出ではなく、今どういう状態かを見せるための表示。
+    /// </summary>
+    public void SetAntennating(bool antennating)
+    {
+        isAntennating = antennating;
+    }
+
     /// <summary>選択状態を切り替える（色が反転する）。</summary>
     public void SetSelected(bool selected)
     {
@@ -120,13 +134,17 @@ public class AntView : MonoBehaviour
 
         if (animateAntennae && antennae != null && antennae.Length > 0)
         {
-            antennaPhase += deltaTime * antennaSwingSpeed;
+            // 口移しの最中は速く大きく震わせる
+            float speed = antennaSwingSpeed * (isAntennating ? antennatingSpeedScale : 1f);
+            float swingAngle = antennaSwingAngle * (isAntennating ? antennatingAngleScale : 1f);
+
+            antennaPhase += deltaTime * speed;
             // 左右の触角を互い違いに揺らす
             for (int i = 0; i < antennae.Length; i++)
             {
                 if (antennae[i] == null) continue;
                 float phase = antennaPhase + (i % 2 == 0 ? 0f : Mathf.PI);
-                float angle = Mathf.Sin(phase) * antennaSwingAngle;
+                float angle = Mathf.Sin(phase) * swingAngle;
                 SetLocalZ(antennae[i], antennaBaseAngles[i] + angle);
             }
         }

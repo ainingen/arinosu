@@ -15,7 +15,18 @@ public class Colony : MonoBehaviour
     [SerializeField] private PheromoneField pheromones;
     [SerializeField] private SoilGrid grid;
 
+    [Tooltip("巣の中のアリの位置表を作り直す間隔（秒）。口移しの相手探しに使う")]
+    [SerializeField] private float neighborRebuildInterval = 0.25f;
+
     private float updateTimer;
+    private float neighborTimer;
+
+    /// <summary>巣の中のアリを、粗いマスに振り分けた表。総当たりを避けるため（9章）。</summary>
+    private readonly System.Collections.Generic.Dictionary<long, System.Collections.Generic.List<Ant>> buckets
+        = new System.Collections.Generic.Dictionary<long, System.Collections.Generic.List<Ant>>();
+    /// <summary>使い回すリストの置き場。毎回作り直すとごみが増えるため。</summary>
+    private readonly System.Collections.Generic.Stack<System.Collections.Generic.List<Ant>> listPool
+        = new System.Collections.Generic.Stack<System.Collections.Generic.List<Ant>>();
 
     /// <summary>採餌の刺激（0〜1くらい）。巣の空腹と、入口付近の道しるべから作る。</summary>
     public float ForageStimulus { get; private set; }
@@ -44,11 +55,100 @@ public class Colony : MonoBehaviour
 
     private void Update()
     {
+        float deltaTime = Time.deltaTime;
+
+        neighborTimer -= deltaTime;
+        if (neighborTimer <= 0f)
+        {
+            neighborTimer = Mathf.Max(0.02f, neighborRebuildInterval);
+            RebuildNeighborBuckets();
+        }
+
         float interval = settings != null ? Mathf.Max(0.05f, settings.colonyUpdateInterval) : 1f;
-        updateTimer -= Time.deltaTime;
+        updateTimer -= deltaTime;
         if (updateTimer > 0f) return;
         updateTimer = interval;
         Recalculate();
+    }
+
+    // ============================================================
+    // 巣の中の近くのアリを探す（口移しとねだりに使う）
+    // ============================================================
+
+    private float BucketSize => settings != null ? Mathf.Max(0.5f, settings.neighborCellSize) : 2f;
+
+    private long BucketKey(Vector2 position)
+    {
+        float size = BucketSize;
+        int x = Mathf.FloorToInt(position.x / size);
+        int y = Mathf.FloorToInt(position.y / size);
+        return ((long)x << 32) ^ (uint)y;
+    }
+
+    /// <summary>巣の中のアリを粗いマスに振り分け直す。</summary>
+    private void RebuildNeighborBuckets()
+    {
+        foreach (var pair in buckets)
+        {
+            pair.Value.Clear();
+            listPool.Push(pair.Value);
+        }
+        buckets.Clear();
+
+        var ants = Ant.All;
+        for (int i = 0; i < ants.Count; i++)
+        {
+            Ant ant = ants[i];
+            if (ant == null || !ant.IsInNest) continue;
+
+            long key = BucketKey(ant.Position);
+            System.Collections.Generic.List<Ant> list;
+            if (!buckets.TryGetValue(key, out list))
+            {
+                list = listPool.Count > 0 ? listPool.Pop() : new System.Collections.Generic.List<Ant>();
+                buckets[key] = list;
+            }
+            list.Add(ant);
+        }
+    }
+
+    /// <summary>
+    /// 巣の中で、その範囲にいるいちばん近い仲間を返す（自分は除く）。
+    /// 近くのマスだけを見るので、匹数が増えても重くならない。
+    /// </summary>
+    public Ant FindNearestNestmate(Ant self, float maxDistance)
+    {
+        if (self == null) return null;
+
+        float size = BucketSize;
+        int centerX = Mathf.FloorToInt(self.Position.x / size);
+        int centerY = Mathf.FloorToInt(self.Position.y / size);
+        int range = Mathf.Max(1, Mathf.CeilToInt(maxDistance / size));
+
+        Ant nearest = null;
+        float nearestSq = maxDistance * maxDistance;
+
+        for (int dy = -range; dy <= range; dy++)
+        {
+            for (int dx = -range; dx <= range; dx++)
+            {
+                long key = ((long)(centerX + dx) << 32) ^ (uint)(centerY + dy);
+                System.Collections.Generic.List<Ant> list;
+                if (!buckets.TryGetValue(key, out list)) continue;
+
+                for (int i = 0; i < list.Count; i++)
+                {
+                    Ant other = list[i];
+                    if (other == null || other == self) continue;
+                    float distanceSq = (other.Position - self.Position).sqrMagnitude;
+                    if (distanceSq >= nearestSq) continue;
+                    nearestSq = distanceSq;
+                    nearest = other;
+                }
+            }
+        }
+
+        return nearest;
     }
 
     /// <summary>採餌刺激を計算し直す。ここが S を作る唯一の場所。</summary>

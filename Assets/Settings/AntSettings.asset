@@ -41,10 +41,11 @@ MonoBehaviour:
   foodSenseRange: 1.5
   giveUpSeconds: 90
   circleTurnGain: 120
-  restSeconds: 5
   walkSpeed: 2
   turnSpeed: 540
   fallSpeed: 5
+  startCropMin: 0.5
+  startCropMax: 1
   fullToEmptyDays: 2
   movingMetabolism: 1.5
   starveDays: 1
@@ -53,13 +54,20 @@ MonoBehaviour:
   shareThreshold: 0.2
   shareSeconds: 2
   begThreshold: 0.6
+  begSearchRange: 6
   neighborCellSize: 2
+  alarmDecayPerSecond: 0.2
+  moodAlarmThreshold: 0.5
+  moodHungryThreshold: 0.8
+  moodFollowThreshold: 0.5
   matureDays: 20
   thetaLearn: 0.05
   thetaForget: 0.01
   thetaMin: 0.05
   thetaMax: 0.95
   trailStimulusWeight: 0.5
+  trailStimulusRadius: 3
+  colonyUpdateInterval: 1
   foodPerDay: 1
   foodAmountMin: 30
   foodAmountMax: 80
