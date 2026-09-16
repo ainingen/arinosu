@@ -48,6 +48,26 @@ public class Ant : MonoBehaviour
     [Tooltip("土の中に置かれたとき、歩ける場所を探す範囲（マス）")]
     [SerializeField] private int snapSearchRadius = 60;
 
+    [Header("性質（段階5の生活環で本物になる。今は仮）")]
+    [SerializeField] private AntCaste caste = AntCaste.WorkerMinor;
+    [Tooltip("生まれてからの日数の初期値")]
+    [SerializeField] private float startAgeDays = 10f;
+    [Tooltip("外勤寄りの度合い（0＝内勤、1＝外勤）。段階5で日齢から決める")]
+    [SerializeField, Range(0f, 1f)] private float outdoorTendency = 0.5f;
+
+    [Header("場所の見分け方")]
+    [Tooltip("まわりを何マス見て、トンネルか部屋かを決めるか")]
+    [SerializeField] private int placeSampleRadius = 2;
+    [Tooltip("この数より広ければ部屋とみなす（まわりの通れるマスの数）")]
+    [SerializeField] private int chamberOpenCells = 14;
+
+    /// <summary>生きているアリの一覧。クリック判定などで使う（毎回探すより軽い）。</summary>
+    private static readonly System.Collections.Generic.List<Ant> all = new System.Collections.Generic.List<Ant>();
+    public static System.Collections.Generic.IReadOnlyList<Ant> All => all;
+
+    private GameClock clock;
+    private double bornAtElapsedDays;
+
     private Vector2 position;
     private Vector2 direction = Vector2.right;
     private float wanderTimer;
@@ -59,11 +79,69 @@ public class Ant : MonoBehaviour
     public bool IsFalling => isFalling;
     /// <summary>見た目。</summary>
     public AntView View => view;
+    /// <summary>種類（カースト）。</summary>
+    public AntCaste Caste => caste;
+    /// <summary>外勤寄りの度合い（0〜1）。</summary>
+    public float OutdoorTendency => outdoorTendency;
+
+    /// <summary>生まれてからの日数。</summary>
+    public float AgeDays
+    {
+        get
+        {
+            if (clock == null) return startAgeDays;
+            return startAgeDays + (float)(clock.ElapsedDays - bornAtElapsedDays);
+        }
+    }
+
+    /// <summary>今やっている仕事。段階3で反応閾値モデルから決まるようになる。</summary>
+    public AntTask CurrentTask => isFalling ? AntTask.Fall : AntTask.Wander;
+
+    /// <summary>運んでいるもの。段階3以降で中身が入る。</summary>
+    public AntCarry Carrying => AntCarry.None;
+
+    /// <summary>気持ち。段階3で内部状態から選ぶ。今は落下中かどうかだけ。</summary>
+    public AntMood CurrentMood => isFalling ? AntMood.Alarmed : AntMood.Calm;
+
+    /// <summary>今いる場所の種類。まわりの土の形から決める。</summary>
+    public AntPlace CurrentPlace
+    {
+        get
+        {
+            if (grid == null) return AntPlace.Surface;
+            int x, y;
+            if (!grid.WorldToCell(position, out x, out y)) return AntPlace.Surface;
+            if (y >= grid.SurfaceRow) return AntPlace.Surface;
+
+            // まわりに通れるマスが多ければ部屋、少なければトンネル
+            int open = 0;
+            for (int dy = -placeSampleRadius; dy <= placeSampleRadius; dy++)
+            {
+                for (int dx = -placeSampleRadius; dx <= placeSampleRadius; dx++)
+                {
+                    if (grid.IsPassable(x + dx, y + dy)) open++;
+                }
+            }
+            return open >= chamberOpenCells ? AntPlace.Chamber : AntPlace.Tunnel;
+        }
+    }
 
     private void Awake()
     {
         if (grid == null) grid = FindFirstObjectByType<SoilGrid>();
         if (view == null) view = GetComponent<AntView>();
+        clock = FindFirstObjectByType<GameClock>();
+        if (clock != null) bornAtElapsedDays = clock.ElapsedDays;
+    }
+
+    private void OnEnable()
+    {
+        if (!all.Contains(this)) all.Add(this);
+    }
+
+    private void OnDisable()
+    {
+        all.Remove(this);
     }
 
     private void Start()

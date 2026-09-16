@@ -35,12 +35,12 @@ public class TimeDisplayUI : MonoBehaviour
     {
         if (clock == null) return string.Empty;
 
-        string day = "Day " + clock.Day;
+        string day = clock.Day + "日目";
         string time = clock.Hour.ToString("00") + ":" + clock.Minute.ToString("00");
         string season = SeasonToText(clock.CurrentSeason);
         string speed = SpeedToText();
 
-        return day + "  " + time + "  " + season + (speed.Length > 0 ? "  " + speed : string.Empty);
+        return day + "　" + time + "　" + season + (speed.Length > 0 ? "　" + speed : string.Empty);
     }
 
     /// <summary>季節の表示名。</summary>
@@ -48,10 +48,10 @@ public class TimeDisplayUI : MonoBehaviour
     {
         switch (season)
         {
-            case Season.Spring: return "Spring";
-            case Season.Summer: return "Summer";
-            case Season.Autumn: return "Autumn";
-            case Season.Winter: return "Winter";
+            case Season.Spring: return "春";
+            case Season.Summer: return "夏";
+            case Season.Autumn: return "秋";
+            case Season.Winter: return "冬";
             default: return string.Empty;
         }
     }
@@ -60,7 +60,7 @@ public class TimeDisplayUI : MonoBehaviour
     private string SpeedToText()
     {
         if (speedController == null) return string.Empty;
-        if (speedController.IsPaused) return "Paused";
-        return "x" + speedController.CurrentSpeed.ToString("0.##");
+        if (speedController.IsPaused) return "一時停止";
+        return "×" + speedController.CurrentSpeed.ToString("0.##");
     }
 }

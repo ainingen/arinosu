@@ -35,17 +35,32 @@ public class CameraController : MonoBehaviour
     [Tooltip("世界の外側に許す余白（Unity単位）")]
     [SerializeField] private float worldMargin = 3f;
 
+    [Header("追跡")]
+    [Tooltip("選んだアリを追いかける速さ。大きいほどすぐ追いつく")]
+    [SerializeField] private float followLerp = 8f;
+
     private Camera cam;
     private float targetZoom;
     private bool isDragging;
     /// <summary>ドラッグ開始時にカーソルがつかんだワールド座標。</summary>
     private Vector3 dragAnchorWorld;
+    /// <summary>追いかけている相手。null なら追跡していない。</summary>
+    private Transform followTarget;
 
     /// <summary>プレイヤーが画面を動かしたときに呼ばれる（段階2でアリの追跡を解除するのに使う）。</summary>
     public event Action OnUserPanned;
 
     /// <summary>今ドラッグ中か。</summary>
     public bool IsDragging => isDragging;
+
+    /// <summary>今追いかけている相手（追跡していなければ null）。</summary>
+    public Transform FollowTarget => followTarget;
+
+    /// <summary>追いかける相手を決める。null を渡すと追跡をやめる。</summary>
+    public void SetFollowTarget(Transform target)
+    {
+        followTarget = target;
+    }
 
     private void Awake()
     {
@@ -75,7 +90,22 @@ public class CameraController : MonoBehaviour
 
         HandleZoom(mouse);
         HandleDrag(mouse);
+        FollowTargetStep();
         ClampPosition();
+    }
+
+    /// <summary>追いかけている相手へカメラを寄せる。</summary>
+    private void FollowTargetStep()
+    {
+        if (followTarget == null) return;
+
+        // 一時停止中でも追跡が止まらないように unscaled を使う
+        float t = 1f - Mathf.Exp(-followLerp * Time.unscaledDeltaTime);
+        Vector3 target = followTarget.position;
+        Vector3 position = transform.position;
+        position.x = Mathf.Lerp(position.x, target.x, t);
+        position.y = Mathf.Lerp(position.y, target.y, t);
+        transform.position = position;
     }
 
     /// <summary>ホイールでズームする。カーソルの下にある場所が動かないようにする。</summary>
@@ -131,6 +161,8 @@ public class CameraController : MonoBehaviour
         shift.z = 0f;
         if (shift.sqrMagnitude <= 0f) return;
 
+        // 画面を自分で動かしたら追跡はやめる（仕様4章）
+        followTarget = null;
         transform.position += shift;
         OnUserPanned?.Invoke();
     }
