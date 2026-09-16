@@ -3,6 +3,7 @@ using UnityEngine;
 /// <summary>
 /// 巣の中に働きアリを出す。
 /// 匹数は行動の数値ではないので AntSettings ではなくここに置く。
+/// 開発用に、Shift＋7 でまとめて増やせる（性能を測るときに使う）。
 /// </summary>
 [DisallowMultipleComponent]
 public class AntSpawner : MonoBehaviour
@@ -21,6 +22,14 @@ public class AntSpawner : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float minNestValue = 0.85f;
     [Tooltip("置ける場所を探す試行回数（1匹あたり）")]
     [SerializeField] private int placementTries = 40;
+
+    [Header("デバッグ")]
+    [Tooltip("Shift＋7 でまとめて増やせるようにする（性能を測るとき用）")]
+    [SerializeField] private bool allowDebugSpawnKey = true;
+    [Tooltip("Shift＋7 を1回押すと何匹増やすか")]
+    [SerializeField] private int debugSpawnBatch = 50;
+    [Tooltip("これ以上は増やさない")]
+    [SerializeField] private int debugSpawnLimit = 400;
 
     [Header("個体差")]
     [Tooltip("日齢のばらつき（日）")]
@@ -46,6 +55,21 @@ public class AntSpawner : MonoBehaviour
         if (nestField != null) nestField.EnsureBuilt();
 
         for (int i = 0; i < workerCount; i++) SpawnOne();
+    }
+
+    private void Update()
+    {
+        // Shift＋7：アリをまとめて増やす（性能を測るとき用）
+        if (!allowDebugSpawnKey) return;
+        if (!DebugKeys.WasPressed(7)) return;
+
+        int added = 0;
+        for (int i = 0; i < debugSpawnBatch && Ant.All.Count < debugSpawnLimit; i++)
+        {
+            if (SpawnOne() == null) break;
+            added++;
+        }
+        Debug.Log("デバッグ：アリを " + added + "匹 増やした（合計 " + Ant.All.Count + "匹）");
     }
 
     /// <summary>働きアリを1匹、巣の中に出す。</summary>

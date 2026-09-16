@@ -1,9 +1,8 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 /// <summary>
 /// 匂いの層を目で見るための重ね表示（行動モデル.md 8章）。
-/// F1＝道しるべ、F2＝巣の匂い、F3＝選択中のアリの感知点。
+/// Shift＋1＝道しるべ、Shift＋2＝巣の匂い、Shift＋3＝選択中のアリの感知点。
 /// 表示していないときは何も計算しない。
 /// </summary>
 [DisallowMultipleComponent]
@@ -134,22 +133,20 @@ public class FieldDebugOverlay : MonoBehaviour
 
     private void HandleKeys()
     {
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard == null) return;
-
-        if (keyboard.f1Key.wasPressedThisFrame)
+        // Shift＋1：道しるべ、Shift＋2：巣の匂い、Shift＋3：感知点
+        if (DebugKeys.WasPressed(1))
         {
             mode = mode == OverlayMode.Trail ? OverlayMode.None : OverlayMode.Trail;
             refreshTimer = 0f;
             ApplyVisibility();
         }
-        if (keyboard.f2Key.wasPressedThisFrame)
+        if (DebugKeys.WasPressed(2))
         {
             mode = mode == OverlayMode.Nest ? OverlayMode.None : OverlayMode.Nest;
             refreshTimer = 0f;
             ApplyVisibility();
         }
-        if (keyboard.f3Key.wasPressedThisFrame)
+        if (DebugKeys.WasPressed(3))
         {
             showSensors = !showSensors;
             ApplyVisibility();

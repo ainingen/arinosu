@@ -68,9 +68,9 @@ MonoBehaviour:
   trailStimulusWeight: 0.5
   trailStimulusRadius: 3
   colonyUpdateInterval: 1
-  foodPerDay: 1
+  foodPerDay: 2
   foodAmountMin: 30
-  foodAmountMax: 80
+  foodAmountMax: 120
   foodMinDistanceFromEntrance: 5
   foodMinDiameter: 0.8
   foodMaxDiameter: 1.6

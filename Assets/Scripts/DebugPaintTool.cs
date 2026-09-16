@@ -21,9 +21,9 @@ public class DebugPaintTool : MonoBehaviour
     [Tooltip("画面の隅に出す札")]
     [SerializeField] private GameObject paintModeLabel;
     [Tooltip("札に出す文字（道しるべを塗るモード）")]
-    [SerializeField] private string paintModeMessage = "塗りモード（F4で解除）";
+    [SerializeField] private string paintModeMessage = "塗りモード（Shift+4で解除）";
     [Tooltip("札に出す文字（餌を置くモード）")]
-    [SerializeField] private string foodModeMessage = "餌置きモード（クリックで設置・F5で解除）";
+    [SerializeField] private string foodModeMessage = "餌置きモード（クリックで設置・Shift+5で解除）";
     [Tooltip("入口に近すぎて置けないときの文。{0} に必要な距離が入る")]
     [SerializeField] private string foodTooCloseMessage = "巣の入口に近すぎます（{0}cm以上離してください）";
     [Tooltip("その列に地面がないときの文")]
@@ -110,15 +110,15 @@ public class DebugPaintTool : MonoBehaviour
             if (messageTimer <= 0f) ApplyModeLabel();
         }
 
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard != null && keyboard.f4Key.wasPressedThisFrame)
+        // Shift＋4：道しるべを塗る、Shift＋5：餌を置く
+        if (DebugKeys.WasPressed(4))
         {
             PaintModeActive = !PaintModeActive;
             if (PaintModeActive) FoodModeActive = false;
             ApplyOverlay();
             ApplyModeLabel();
         }
-        if (keyboard != null && keyboard.f5Key.wasPressedThisFrame)
+        if (DebugKeys.WasPressed(5))
         {
             FoodModeActive = !FoodModeActive;
             if (FoodModeActive && PaintModeActive)

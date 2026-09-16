@@ -1,9 +1,8 @@
 using TMPro;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 /// <summary>
-/// 開発用：コロニーの状態を数字で出す（F6 で切り替え）。
+/// 開発用：コロニーの状態を数字で出す（Shift＋6 で切り替え）。
 /// 反応閾値モデルが効いているかは、目で見るだけでは分からないため。
 /// </summary>
 [DisallowMultipleComponent]
@@ -16,7 +15,11 @@ public class ColonyDebugUI : MonoBehaviour
     [Tooltip("最初から出しておくか")]
     [SerializeField] private bool visibleAtStart;
 
+    [Tooltip("fps の表示をなめらかにする強さ（0〜1、小さいほどゆっくり動く）")]
+    [SerializeField, Range(0.01f, 1f)] private float fpsSmoothing = 0.1f;
+
     private float timer;
+    private float smoothedFps;
 
     private void Awake()
     {
@@ -30,8 +33,15 @@ public class ColonyDebugUI : MonoBehaviour
 
     private void Update()
     {
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard != null && keyboard.f6Key.wasPressedThisFrame && label != null)
+        // fps は表示していなくても測っておく（出した瞬間から正しい値が見えるように）
+        if (Time.unscaledDeltaTime > 0f)
+        {
+            float instant = 1f / Time.unscaledDeltaTime;
+            smoothedFps = smoothedFps <= 0f ? instant : Mathf.Lerp(smoothedFps, instant, fpsSmoothing);
+        }
+
+        // Shift＋6：コロニーの状態表示
+        if (DebugKeys.WasPressed(6) && label != null)
         {
             label.gameObject.SetActive(!label.gameObject.activeSelf);
         }
@@ -57,6 +67,7 @@ public class ColonyDebugUI : MonoBehaviour
         float cropAverage = total > 0 ? cropSum / total : 0f;
 
         var sb = new System.Text.StringBuilder();
+        sb.AppendLine("fps " + smoothedFps.ToString("0") + "（1フレーム " + (smoothedFps > 0f ? (1000f / smoothedFps).ToString("0.0") : "-") + "ms）／速さ ×" + Time.timeScale.ToString("0.##"));
         sb.AppendLine("アリ " + total + "匹（巣 " + colony.AntsInNest + " / 外 " + colony.AntsOutside + "）");
         sb.AppendLine("採餌の刺激 S＝" + colony.ForageStimulus.ToString("0.00"));
         sb.AppendLine("　巣の空腹の平均＝" + colony.NestHungerAverage.ToString("0.00"));

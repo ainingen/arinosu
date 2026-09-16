@@ -47,6 +47,9 @@ public class TimeSpeedController : MonoBehaviour
         Keyboard keyboard = Keyboard.current;
         if (keyboard == null) return;
 
+        // Shift＋数字は開発用の表示切り替えに使っているので、速さは変えない
+        if (DebugKeys.ShiftHeld) return;
+
         if (keyboard.digit0Key.wasPressedThisFrame || keyboard.numpad0Key.wasPressedThisFrame) SetSpeedIndex(0);
         else if (keyboard.digit1Key.wasPressedThisFrame || keyboard.numpad1Key.wasPressedThisFrame) SetSpeedIndex(1);
         else if (keyboard.digit2Key.wasPressedThisFrame || keyboard.numpad2Key.wasPressedThisFrame) SetSpeedIndex(2);
