@@ -41,12 +41,14 @@ public class Colony : MonoBehaviour
     /// <summary>閾値の平均（学習で下がっていくのが見える）。</summary>
     public float ThetaAverage { get; private set; }
 
-    /// <summary>掘る刺激（0〜1）。巣が狭いほど大きい。</summary>
+    /// <summary>掘る刺激（0〜1）。巣が目標の広さより狭いほど大きい。</summary>
     public float DigStimulus { get; private set; }
-    /// <summary>巣の混雑度（巣の中のアリの数 ÷ 空洞のマス数）。</summary>
+    /// <summary>混雑度（コロニーの総個体数 ÷ 空洞のマス数）。出入りでは変わらない。</summary>
     public float Crowding { get; private set; }
     /// <summary>巣の空洞のマス数。</summary>
     public int CavityCells { get; private set; }
+    /// <summary>今の個体数に対する、巣の広さの目標（マス数）。</summary>
+    public int TargetCavityCells { get; private set; }
 
     private int cavityVersion = -1;
 
@@ -195,21 +197,37 @@ public class Colony : MonoBehaviour
         // 前半：巣が空腹なら出る。後半：行列ができていれば釣られて出る
         ForageStimulus = Mathf.Clamp01(NestHungerAverage + EntranceTrail / trailMax * weight);
 
-        RecalculateDig(inNest);
+        RecalculateDig();
     }
 
-    /// <summary>掘る刺激を計算し直す（行動モデル.md 12-1）。狭いほど掘りたくなる。</summary>
-    private void RecalculateDig(int antsInNest)
+    /// <summary>
+    /// 掘る刺激を計算し直す（行動モデル.md 12-1）。
+    ///
+    /// 巣の広さが「総個体数 × targetCellsPerAnt」に届いていないほど強くなる。
+    /// 巣の中にいる数ではなく**総個体数**で見るので、採餌の出入りで刺激が揺れない。
+    /// 目標に達したら 0 になり、掘削は止まる。
+    /// </summary>
+    private void RecalculateDig()
     {
         if (grid == null) return;
 
         if (cavityVersion != grid.Version) CountCavityCells();
 
-        Crowding = CavityCells > 0 ? (float)antsInNest / CavityCells : 0f;
+        int totalAnts = Ant.All.Count;
+        Crowding = CavityCells > 0 ? (float)totalAnts / CavityCells : 0f;
 
-        float comfortable = settings != null ? settings.comfortableDensity : 0.3f;
-        float range = settings != null ? Mathf.Max(0.0001f, settings.crowdRange) : 0.3f;
-        DigStimulus = Mathf.Clamp01((Crowding - comfortable) / range);
+        float cellsPerAnt = settings != null ? Mathf.Max(0.0001f, settings.targetCellsPerAnt) : 6f;
+        TargetCavityCells = Mathf.RoundToInt(totalAnts * cellsPerAnt);
+
+        if (TargetCavityCells <= 0 || CavityCells >= TargetCavityCells)
+        {
+            DigStimulus = 0f;
+            return;
+        }
+
+        float range = settings != null ? Mathf.Clamp(settings.digShortfallRange, 0.05f, 1f) : 0.5f;
+        float shortfall = TargetCavityCells - CavityCells;
+        DigStimulus = Mathf.Clamp01(shortfall / (TargetCavityCells * range));
     }
 
     /// <summary>巣の空洞のマス数を数える。地形が変わったときだけ。</summary>

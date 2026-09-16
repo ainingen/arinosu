@@ -138,10 +138,10 @@ public class AntSettings : ScriptableObject
     public float colonyUpdateInterval = 1f;
 
     [Header("掘削：掘る動機（行動モデル.md 12-1）")]
-    [Tooltip("1マスあたり何匹までなら狭く感じないか")]
-    public float comfortableDensity = 0.3f;
-    [Tooltip("この幅ぶん混むと、掘る刺激が最大になる")]
-    public float crowdRange = 0.3f;
+    [Tooltip("アリ1匹あたり、これだけの空洞マスがあれば足りている。巣の広さの目標を決める")]
+    public float targetCellsPerAnt = 6f;
+    [Tooltip("目標に対して何割足りないと刺激が最大になるか（0.5＝目標の半分の広さで最大）")]
+    [Range(0.05f, 1f)] public float digShortfallRange = 0.5f;
     [Tooltip("掘削の閾値の初期値。日齢に依存しない一定値")]
     [Range(0f, 1f)] public float thetaDigInitial = 0.5f;
 

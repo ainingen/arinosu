@@ -68,8 +68,8 @@ MonoBehaviour:
   trailStimulusWeight: 0.5
   trailStimulusRadius: 3
   colonyUpdateInterval: 1
-  comfortableDensity: 0.05
-  crowdRange: 0.15
+  targetCellsPerAnt: 6
+  digShortfallRange: 0.5
   thetaDigInitial: 0.5
   digBase: 0.002
   digMarkerGain: 0.3

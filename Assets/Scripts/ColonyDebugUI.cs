@@ -82,8 +82,8 @@ public class ColonyDebugUI : MonoBehaviour
             if (ant != null && ant.CurrentTask == AntTask.Dig) digging++;
         }
         sb.AppendLine("掘る刺激 S_dig＝" + colony.DigStimulus.ToString("0.00"));
-        sb.Append("　巣の空洞＝" + colony.CavityCells + "マス／混雑＝" + colony.Crowding.ToString("0.00")
-            + "匹per マス／掘っている＝" + digging + "匹");
+        sb.Append("　巣の空洞＝" + colony.CavityCells + " / 目標 " + colony.TargetCavityCells + "マス"
+            + "／掘っている＝" + digging + "匹");
         return sb.ToString();
     }
 }
