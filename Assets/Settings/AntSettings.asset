@@ -1,0 +1,67 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f5608f148a70b842ab21e1dd8f014d8, type: 3}
+  m_Name: AntSettings
+  m_EditorClassIdentifier: Assembly-CSharp::AntSettings
+  perceptionInterval: 0.1
+  decisionInterval: 5
+  diffusionInterval: 0.5
+  metabolismInterval: 1
+  maxDiffusionStepsPerFrame: 8
+  trailHalfLife: 60
+  trailDiffusion: 0.05
+  depositTrail: 1
+  trailMax: 10
+  alarmHalfLife: 10
+  alarmDiffusion: 0.2
+  alarmMax: 10
+  nestEntranceValue: 0.8
+  nestDeepValue: 1
+  nestDeepDistance: 10
+  nestSurfaceFalloff: 15
+  nestFar: 0.05
+  nestInside: 0.8
+  nestRebuildInterval: 0.5
+  sensorForward: 0.6
+  sensorSpread: 35
+  kTrail: 2
+  turnGain: 40
+  wanderSigma: 25
+  homingBias: 10
+  trailLostDuration: 3
+  foodSenseRange: 1.5
+  giveUpMinutes: 20
+  walkSpeed: 2
+  turnSpeed: 540
+  fallSpeed: 5
+  fullToEmptyDays: 2
+  movingMetabolism: 1.5
+  starveDays: 1
+  carryLoad: 1
+  contactRange: 0.8
+  shareThreshold: 0.2
+  shareSeconds: 2
+  begThreshold: 0.6
+  neighborCellSize: 2
+  matureDays: 20
+  thetaLearn: 0.05
+  thetaForget: 0.01
+  thetaMin: 0.05
+  thetaMax: 0.95
+  trailStimulusWeight: 0.5
+  foodPerDay: 1
+  foodAmountMin: 3
+  foodAmountMax: 8
+  foodMinDistanceFromEntrance: 5
+  initialFoodCount: 1
+  overlayRefreshInterval: 0.25
+  debugPaintAmount: 2

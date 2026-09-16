@@ -77,9 +77,27 @@ public class SoilGrid : MonoBehaviour
     /// <summary>グリッド全体を作り直したときに呼ばれる。</summary>
     public event Action OnGridRebuilt;
 
+    /// <summary>
+    /// 地形が変わるたびに増える版番号。
+    /// 「読んだら消す」変更リストと違い、見る人が何人いても取りこぼさない。
+    /// 巣の匂いの作り直しなどは、自分が見た版と比べて判断する。
+    /// </summary>
+    public int Version => version;
+    private int version;
+
     private void Awake()
     {
-        Generate();
+        EnsureGenerated();
+    }
+
+    /// <summary>
+    /// まだ作られていなければ地形を作る。
+    /// 他のコンポーネントの Awake がこちらより先に走っても困らないようにするため、
+    /// マスを読む前に必ずここを通す。
+    /// </summary>
+    public void EnsureGenerated()
+    {
+        if (cells == null) Generate();
     }
 
     /// <summary>初期地形を作り直す。</summary>
@@ -112,6 +130,7 @@ public class SoilGrid : MonoBehaviour
         CarveStartingNest();
 
         dirtyCells.Clear();
+        version++;
         OnGridRebuilt?.Invoke();
     }
 
@@ -163,6 +182,7 @@ public class SoilGrid : MonoBehaviour
     public CellType GetCell(int x, int y)
     {
         if (!IsInside(x, y)) return CellType.Air;
+        if (cells == null) EnsureGenerated();
         return cells[y * width + x];
     }
 
@@ -170,10 +190,12 @@ public class SoilGrid : MonoBehaviour
     public void SetCell(int x, int y, CellType type)
     {
         if (!IsInside(x, y)) return;
+        if (cells == null) EnsureGenerated();
         int index = y * width + x;
         if (cells[index] == type) return;
         cells[index] = type;
         dirtyCells.Add(index);
+        version++;
     }
 
     /// <summary>描画側へ伝えずに書き換える（地形生成中に使う）。</summary>
@@ -197,7 +219,7 @@ public class SoilGrid : MonoBehaviour
         if (y >= height) return false;
         // 左右と下の外側は固体扱い。観察キットのガラス壁だと思えばよい
         if (!IsInside(x, y)) return true;
-        CellType type = cells[y * width + x];
+        CellType type = GetCell(x, y);
         return type == CellType.Soil || type == CellType.Stone;
     }
 
