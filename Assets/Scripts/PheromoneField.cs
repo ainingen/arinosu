@@ -7,6 +7,8 @@ public enum PheromoneLayer
     Trail = 0,
     /// <summary>警報</summary>
     Alarm = 1,
+    /// <summary>掘削跡（掘った場所に集中させる。行動モデル.md 12-4）</summary>
+    Dig = 2,
 }
 
 /// <summary>
@@ -73,9 +75,10 @@ public class PheromoneField : MonoBehaviour
         height = grid.Height;
         int count = width * height;
 
-        layers = new Layer[2];
+        layers = new Layer[3];
         layers[(int)PheromoneLayer.Trail] = new Layer { values = new float[count], buffer = new float[count] };
         layers[(int)PheromoneLayer.Alarm] = new Layer { values = new float[count], buffer = new float[count] };
+        layers[(int)PheromoneLayer.Dig] = new Layer { values = new float[count], buffer = new float[count] };
         passable = new bool[count];
         ApplySettings();
         RefreshPassable();
@@ -94,6 +97,11 @@ public class PheromoneField : MonoBehaviour
         alarm.halfLife = settings.alarmHalfLife;
         alarm.diffusion = settings.alarmDiffusion;
         alarm.max = settings.alarmMax;
+
+        var dig = layers[(int)PheromoneLayer.Dig];
+        dig.halfLife = settings.digHalfLife;
+        dig.diffusion = settings.digDiffusion;
+        dig.max = settings.digMax;
     }
 
     /// <summary>通れるマスの控えを作り直し、固体になったマスの濃度を消す。</summary>

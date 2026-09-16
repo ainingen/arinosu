@@ -15,12 +15,14 @@ public enum AntTask
     ReturnWithFood,
     /// <summary>空手で帰っている</summary>
     ReturnEmpty,
+    /// <summary>巣を掘り広げている（行動モデル.md 12章）</summary>
+    Dig,
+    /// <summary>掘った土を外へ運び出している</summary>
+    CarrySoilOut,
     /// <summary>採餌</summary>
     Forage,
     /// <summary>幼虫の世話</summary>
     Nurse,
-    /// <summary>掘削</summary>
-    Dig,
     /// <summary>見張り</summary>
     Guard,
 }
@@ -75,6 +77,10 @@ public enum AntMood
     Searching,
     /// <summary>栄養交換中</summary>
     Sharing,
+    /// <summary>掘っている</summary>
+    Digging,
+    /// <summary>掘った土を外へ運んでいる</summary>
+    CarryingSoil,
 }
 
 /// <summary>
@@ -117,9 +123,10 @@ public static class AntTexts
             case AntTask.Explore: return "餌を探している";
             case AntTask.ReturnWithFood: return "餌を持ち帰っている";
             case AntTask.ReturnEmpty: return "巣へ戻っている";
+            case AntTask.Dig: return "掘っている";
+            case AntTask.CarrySoilOut: return "土を運び出している";
             case AntTask.Forage: return "採餌中";
             case AntTask.Nurse: return "幼虫の世話";
-            case AntTask.Dig: return "掘削中";
             case AntTask.Guard: return "見張り";
             default: return "－";
         }
@@ -178,6 +185,8 @@ public static class AntTexts
             case AntMood.FollowingTrail: return "匂いをたどっている";
             case AntMood.Searching: return "餌を探している";
             case AntMood.Sharing: return "分け合っている";
+            case AntMood.Digging: return "ここを広げる";
+            case AntMood.CarryingSoil: return "土を外へ運ぶ";
             case AntMood.Calm: return "今は穏やかだ";
             default: return string.Empty;
         }

@@ -73,8 +73,19 @@ public class Ant : MonoBehaviour
     private float crop = 1f;
     /// <summary>仲間へ配るために持ち帰っている分</summary>
     private float carryLoad;
-    /// <summary>Explore の閾値（腰の重さ）。学習で動く</summary>
-    private float theta = 0.5f;
+    /// <summary>仕事ごとの閾値（腰の重さ）。学習で動く（行動モデル.md 12-2）</summary>
+    private readonly float[] theta = new float[ThetaCount];
+    private const int ThetaExplore = 0;
+    private const int ThetaDig = 1;
+    private const int ThetaCount = 2;
+
+    // ---- 掘削（行動モデル.md 12章）----
+    /// <summary>掘り終わるまでの残り時間。0 より大きいあいだは止まって掘っている</summary>
+    private float digTimer;
+    /// <summary>掘る場所を探して歩いている時間。長すぎたら巣の仕事に戻る</summary>
+    private float digSearchTimer;
+    /// <summary>今掘っているマス</summary>
+    private int digCellX, digCellY;
     private float metabolismTimer;
     private float movedSinceMetabolism;
     private float starveSeconds;
@@ -109,7 +120,11 @@ public class Ant : MonoBehaviour
     /// <summary>仲間へ配るために持ち帰っている分。</summary>
     public float CarryLoad => carryLoad;
     /// <summary>Explore の閾値。低いほど外へ出やすい。</summary>
-    public float ExploreThreshold => theta;
+    public float ExploreThreshold => theta[ThetaExplore];
+    /// <summary>Dig の閾値。低いほど掘りやすい。</summary>
+    public float DigThreshold => theta[ThetaDig];
+    /// <summary>今、土を掘っている最中か。</summary>
+    public bool IsDigging => digTimer > 0f;
     /// <summary>巣の中にいるか（巣の匂いの濃さで決まる）。</summary>
     public bool IsInNest => isInNest;
     /// <summary>今、仲間と口移しの最中か。</summary>
@@ -117,7 +132,7 @@ public class Ant : MonoBehaviour
     /// <summary>興奮度（0〜1）。</summary>
     public float Alarm => alarm;
     /// <summary>外勤寄りの度合い。閾値の裏返しで、情報パネルのゲージに出す。</summary>
-    public float OutdoorTendency => 1f - theta;
+    public float OutdoorTendency => 1f - theta[ThetaExplore];
     /// <summary>道しるべをどれくらいたどっているか（0〜1）。段階3cの「気持ち」で使う。</summary>
     public float FollowProbability => lastFollowProbability;
     /// <summary>匂いが途切れたと感じている最中か。</summary>
@@ -151,8 +166,10 @@ public class Ant : MonoBehaviour
             if (Hunger > settings.moodHungryThreshold) return AntMood.Hungry;
             if (trailLostTimer > 0f) return AntMood.TrailLost;
             if (task == AntTask.ReturnWithFood) return AntMood.CarryingFood;
+            if (task == AntTask.CarrySoilOut) return AntMood.CarryingSoil;
             // 巣の外にいて、巣の匂いがほとんど届いていない
             if (!isInNest && nestHere < settings.nestFar) return AntMood.FarFromNest;
+            if (task == AntTask.Dig) return AntMood.Digging;
             if (task == AntTask.Explore && lastFollowProbability > settings.moodFollowThreshold) return AntMood.FollowingTrail;
             if (task == AntTask.Explore) return AntMood.Searching;
             if (sharePartner != null) return AntMood.Sharing;
@@ -223,7 +240,9 @@ public class Ant : MonoBehaviour
             crop = Random.Range(settings.startCropMin, settings.startCropMax);
 
             // 若いほど閾値が高い＝外へ出にくい。これが齢間分業になる
-            theta = Mathf.Clamp(1f - AgeDays / Mathf.Max(0.0001f, settings.matureDays), 0.15f, 0.95f);
+            theta[ThetaExplore] = Mathf.Clamp(1f - AgeDays / Mathf.Max(0.0001f, settings.matureDays), 0.15f, 0.95f);
+            // 掘削は内勤と外勤の中間なので、日齢では決めず一定値から始める
+            theta[ThetaDig] = settings.thetaDigInitial;
         }
 
         ApplyTransform(0f);
@@ -244,9 +263,10 @@ public class Ant : MonoBehaviour
 
         PerceptionStep(deltaTime);
 
-        // 口移しの最中は、両方とも止まって触角を震わせる
+        // 口移しの最中も、土を掘っている最中も、その場で止まる
         float moved = 0f;
         if (sharePartner != null) ShareStep(deltaTime);
+        else if (digTimer > 0f) DigProgress(deltaTime);
         else moved = MoveStep(deltaTime);
 
         MetabolismStep(deltaTime, moved);
@@ -296,6 +316,9 @@ public class Ant : MonoBehaviour
             case AntTask.ReturnEmpty:
                 ReturnStep(tickTime, inside);
                 break;
+            case AntTask.Dig:
+                DigStep(tickTime, inside);
+                break;
             default:
                 task = AntTask.RestInNest;
                 break;
@@ -329,6 +352,157 @@ public class Ant : MonoBehaviour
         AddWanderNoise(tickTime, settings.wanderSigma);
 
         // 外へ出るかどうかは DecisionStep（反応閾値）が決める
+    }
+
+    // ---- 掘削（行動モデル.md 12章）----
+
+    /// <summary>
+    /// 掘る仕事。目的地は持たない。
+    /// いつもどおり壁沿いに歩き、隣り合った土のマスを確率で掘る。
+    /// </summary>
+    private void DigStep(float tickTime, bool inside)
+    {
+        timeOutside = 0f;
+
+        // 掘っている最中は動かない（進み具合は Update 側で数える）
+        if (digTimer > 0f) return;
+
+        // 巣の外に出てしまっていたら、まず巣へ戻る
+        if (!inside)
+        {
+            SteerAlongNest(tickTime, true, settings.turnGain);
+            AddWanderNoise(tickTime, settings.wanderSigma * 0.5f);
+            return;
+        }
+
+        // 掘れる場所が見つからないまま歩き続けたら、いったん巣の仕事に戻る
+        digSearchTimer += tickTime;
+        if (digSearchTimer > settings.digGiveUpSeconds)
+        {
+            task = AntTask.RestInNest;
+            digSearchTimer = 0f;
+            return;
+        }
+
+        // 壁沿いを歩く（移動層がすでに面に沿わせるので、ここでは向きを揺らすだけ）
+        AddWanderNoise(tickTime, settings.wanderSigma);
+
+        int x, y;
+        if (!grid.WorldToCell(position, out x, out y)) return;
+
+        // 掘る候補を決める（行動モデル.md 12-3）
+        int candidateX, candidateY;
+        float marker;
+        if (!FindDigTarget(x, y, out candidateX, out candidateY, out marker)) return;
+
+        float markerMax = pheromones != null ? Mathf.Max(0.0001f, pheromones.GetMax(PheromoneLayer.Dig)) : 1f;
+        int neighbors = colony != null ? colony.CountNestmatesNear(this, settings.digCrowdRadius) : 0;
+        float crowd = Mathf.Clamp01(neighbors / Mathf.Max(0.0001f, settings.digCrowdFull));
+
+        // 跡をたどっているときだけ、跡の項が効く。
+        // 跡がないとき（新しいトンネルの起点）は基礎の確率だけで掘る
+        float probability = settings.digBase + settings.digCrowdGain * crowd;
+        if (marker > 0f) probability += settings.digMarkerGain * (marker / markerMax);
+
+        if (Random.value >= probability) return;
+
+        digCellX = candidateX;
+        digCellY = candidateY;
+        digTimer = settings.digSeconds;
+    }
+
+    /// <summary>
+    /// 掘る土のマスを決める（行動モデル.md 12-3）。
+    ///
+    /// 自分の隣で掘削跡がいちばん濃い空洞を見つけ、その**反対側**の土を掘る。
+    /// 掘りたての空洞ほど跡が濃いので、直前に掘られた向きへ穴が伸びる。
+    /// 反対側が土でなければ（石・空洞・空気なら）掘らない。
+    ///
+    /// 跡のある空洞が隣にひとつもないときだけ、隣接する土からランダムに選ぶ。
+    /// これが新しいトンネルの起点になる。
+    /// </summary>
+    private bool FindDigTarget(int x, int y, out int targetX, out int targetY, out float marker)
+    {
+        targetX = 0;
+        targetY = 0;
+        marker = 0f;
+
+        // 隣の空洞のうち、跡がいちばん濃いもの（土と石は常に 0 なので自然に除かれる）
+        int markedDX = 0, markedDY = 0;
+        float best = 0f;
+        for (int i = 0; i < 4; i++)
+        {
+            int dx = i == 0 ? 1 : (i == 1 ? -1 : 0);
+            int dy = i == 2 ? 1 : (i == 3 ? -1 : 0);
+            float value = pheromones != null ? pheromones.GetAt(x + dx, y + dy, PheromoneLayer.Dig) : 0f;
+            if (value <= best) continue;
+            best = value;
+            markedDX = dx;
+            markedDY = dy;
+        }
+
+        if (best > 0f)
+        {
+            // 跡のある空洞の反対側を掘る。これで穴が一直線に伸びる
+            int tx = x - markedDX;
+            int ty = y - markedDY;
+            if (!grid.IsInside(tx, ty)) return false;
+            if (grid.GetCell(tx, ty) != CellType.Soil) return false;
+
+            targetX = tx;
+            targetY = ty;
+            marker = best;
+            return true;
+        }
+
+        // 跡がない：隣接する土からランダムに1つ選ぶ（新しいトンネルの起点）
+        int candidateCount = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            int dx = i == 0 ? 1 : (i == 1 ? -1 : 0);
+            int dy = i == 2 ? 1 : (i == 3 ? -1 : 0);
+            int nx = x + dx;
+            int ny = y + dy;
+            if (!grid.IsInside(nx, ny)) continue;
+            if (grid.GetCell(nx, ny) != CellType.Soil) continue;
+
+            candidateCount++;
+            // 数えながら等確率で1つを選ぶ
+            if (Random.Range(0, candidateCount) != 0) continue;
+            targetX = nx;
+            targetY = ny;
+        }
+        return candidateCount > 0;
+    }
+
+    /// <summary>掘る時間を進める。掘り終わったらマスを空洞に変える。</summary>
+    private void DigProgress(float deltaTime)
+    {
+        digTimer -= deltaTime;
+        if (digTimer > 0f) return;
+        digTimer = 0f;
+
+        // 掘っているあいだに、ほかのアリが掘り終えているかもしれない
+        if (grid.GetCell(digCellX, digCellY) != CellType.Soil) return;
+
+        grid.SetCell(digCellX, digCellY, CellType.Cavity);
+
+        // 掘った跡の匂いを、新しくできた空洞1マスだけに置く。
+        // まわりに広げると先端が埋もれて、穴が伸びずに横に広がってしまう
+        if (pheromones != null)
+        {
+            pheromones.DepositAt(digCellX, digCellY, PheromoneLayer.Dig, settings.depositDig);
+        }
+
+        // 段階4bでは、ここで土を持って CarrySoilOut へ移る。
+        // 段階4aは掘るところまでなので、土はその場で消える
+        carrying = AntCarry.None;
+
+        // 1粒掘ったら巣の中の仕事に戻る。
+        // こうしないと、一度 Dig になったアリが永久に掘り続けてしまい、
+        // 混雑が解消しても掘削が止まらなくなる（反応閾値モデルの外に出てしまう）
+        task = AntTask.RestInNest;
+        digSearchTimer = 0f;
     }
 
     // ---- 口移し（行動モデル.md 4章）----
@@ -475,23 +649,36 @@ public class Ant : MonoBehaviour
         if (task != AntTask.RestInNest) return;
         if (sharePartner != null) return;   // 分け合っている最中は出発しない
 
-        float stimulus = colony != null ? colony.ForageStimulus : 0f;
-        float probability = stimulus > 0f
-            ? (stimulus * stimulus) / (stimulus * stimulus + theta * theta)
-            : 0f;
-
-        if (Random.value < probability)
+        // 仕事ごとに P = S²/(S²+θ²) を出し、順番の偏りが出ないよう順序をランダムにして判定する
+        bool digFirst = Random.value < 0.5f;
+        for (int i = 0; i < ThetaCount; i++)
         {
-            // 外へ出た。次はもう少し出やすくなる
-            task = AntTask.Explore;
+            bool checkDig = digFirst ? (i == 0) : (i == 1);
+            int index = checkDig ? ThetaDig : ThetaExplore;
+            float stimulus = colony != null
+                ? (checkDig ? colony.DigStimulus : colony.ForageStimulus)
+                : 0f;
+
+            if (stimulus <= 0f) continue;
+            float probability = (stimulus * stimulus) / (stimulus * stimulus + theta[index] * theta[index]);
+            if (Random.value >= probability) continue;
+
+            // この仕事に就いた。次はもう少し就きやすくなる
+            task = checkDig ? AntTask.Dig : AntTask.Explore;
             timeOutside = 0f;
             targetFood = null;
-            theta = Mathf.Clamp(theta - settings.thetaLearn, settings.thetaMin, settings.thetaMax);
+            theta[index] = Mathf.Clamp(theta[index] - settings.thetaLearn, settings.thetaMin, settings.thetaMax);
+
+            // 選ばなかったほうの腰は重くなる
+            int other = index == ThetaDig ? ThetaExplore : ThetaDig;
+            theta[other] = Mathf.Clamp(theta[other] + settings.thetaForget, settings.thetaMin, settings.thetaMax);
+            return;
         }
-        else
+
+        // どれも選ばなかった。すべての仕事で少しずつ腰が重くなる
+        for (int i = 0; i < ThetaCount; i++)
         {
-            // 出なかった。少しずつ腰が重くなる
-            theta = Mathf.Clamp(theta + settings.thetaForget, settings.thetaMin, settings.thetaMax);
+            theta[i] = Mathf.Clamp(theta[i] + settings.thetaForget, settings.thetaMin, settings.thetaMax);
         }
     }
 

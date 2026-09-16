@@ -68,6 +68,22 @@ MonoBehaviour:
   trailStimulusWeight: 0.5
   trailStimulusRadius: 3
   colonyUpdateInterval: 1
+  comfortableDensity: 0.05
+  crowdRange: 0.15
+  thetaDigInitial: 0.5
+  digBase: 0.002
+  digMarkerGain: 0.3
+  digCrowdGain: 0.005
+  digCrowdRadius: 1.5
+  digCrowdFull: 5
+  digSeconds: 3
+  digGiveUpSeconds: 20
+  digHalfLife: 30
+  digDiffusion: 0
+  digMax: 10
+  depositDig: 3
+  dumpMinDistance: 5
+  moundMaxStep: 2
   foodPerDay: 2
   foodAmountMin: 30
   foodAmountMax: 120

@@ -73,7 +73,17 @@ public class ColonyDebugUI : MonoBehaviour
         sb.AppendLine("　巣の空腹の平均＝" + colony.NestHungerAverage.ToString("0.00"));
         sb.AppendLine("　入口の道しるべ＝" + colony.EntranceTrail.ToString("0.0"));
         sb.AppendLine("社会胃の平均＝" + cropAverage.ToString("0.00"));
-        sb.Append("閾値θの平均＝" + colony.ThetaAverage.ToString("0.00"));
+        sb.AppendLine("閾値θの平均＝" + colony.ThetaAverage.ToString("0.00"));
+
+        int digging = 0;
+        for (int i = 0; i < total; i++)
+        {
+            Ant ant = Ant.All[i];
+            if (ant != null && ant.CurrentTask == AntTask.Dig) digging++;
+        }
+        sb.AppendLine("掘る刺激 S_dig＝" + colony.DigStimulus.ToString("0.00"));
+        sb.Append("　巣の空洞＝" + colony.CavityCells + "マス／混雑＝" + colony.Crowding.ToString("0.00")
+            + "匹per マス／掘っている＝" + digging + "匹");
         return sb.ToString();
     }
 }

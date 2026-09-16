@@ -137,6 +137,45 @@ public class AntSettings : ScriptableObject
     [Tooltip("コロニー全体の値（採餌刺激など）を計算し直す間隔（秒）")]
     public float colonyUpdateInterval = 1f;
 
+    [Header("掘削：掘る動機（行動モデル.md 12-1）")]
+    [Tooltip("1マスあたり何匹までなら狭く感じないか")]
+    public float comfortableDensity = 0.3f;
+    [Tooltip("この幅ぶん混むと、掘る刺激が最大になる")]
+    public float crowdRange = 0.3f;
+    [Tooltip("掘削の閾値の初期値。日齢に依存しない一定値")]
+    [Range(0f, 1f)] public float thetaDigInitial = 0.5f;
+
+    [Header("掘削：掘る場所（行動モデル.md 12-3）")]
+    [Tooltip("どこでも掘る基礎の確率（知覚tickごと）")]
+    [Range(0f, 1f)] public float digBase = 0.02f;
+    [Tooltip("掘削跡の匂いが掘る確率を上げる強さ")]
+    public float digMarkerGain = 0.08f;
+    [Tooltip("まわりの混み具合が掘る確率を上げる強さ")]
+    public float digCrowdGain = 0.08f;
+    [Tooltip("まわりの混み具合を数える範囲（cm）")]
+    public float digCrowdRadius = 1.5f;
+    [Tooltip("この匹数で混み具合が最大（1.0）になる")]
+    public float digCrowdFull = 5f;
+    [Tooltip("1粒掘るのにかかる時間（秒）。その間アリは止まる")]
+    public float digSeconds = 3f;
+    [Tooltip("掘る場所が見つからないまま歩き続けたら、巣の仕事に戻るまでの時間（秒）")]
+    public float digGiveUpSeconds = 20f;
+
+    [Header("掘削：掘削跡の匂い（行動モデル.md 12-4）")]
+    [Tooltip("掘った跡が半分になるまでの時間（秒）。短いほど先端だけが光る")]
+    public float digHalfLife = 30f;
+    [Tooltip("掘削跡は広げない。0 のままにする（広げると先端が埋もれる）")]
+    [Range(0f, 1f)] public float digDiffusion = 0f;
+    public float digMax = 10f;
+    [Tooltip("掘ったマス1つに置く量")]
+    public float depositDig = 3f;
+
+    [Header("掘削：土の運び出しと塚（段階4bで使う）")]
+    [Tooltip("入口からこれだけ離れてから土を置く（cm）")]
+    public float dumpMinDistance = 5f;
+    [Tooltip("隣の列よりこのマス数以上高くなったら、低いほうへ崩す")]
+    public int moundMaxStep = 2;
+
     [Header("餌")]
     [Tooltip("1日あたりに現れる餌の平均個数")]
     public float foodPerDay = 1f;

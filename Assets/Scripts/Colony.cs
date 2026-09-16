@@ -41,6 +41,15 @@ public class Colony : MonoBehaviour
     /// <summary>閾値の平均（学習で下がっていくのが見える）。</summary>
     public float ThetaAverage { get; private set; }
 
+    /// <summary>掘る刺激（0〜1）。巣が狭いほど大きい。</summary>
+    public float DigStimulus { get; private set; }
+    /// <summary>巣の混雑度（巣の中のアリの数 ÷ 空洞のマス数）。</summary>
+    public float Crowding { get; private set; }
+    /// <summary>巣の空洞のマス数。</summary>
+    public int CavityCells { get; private set; }
+
+    private int cavityVersion = -1;
+
     private void Awake()
     {
         if (nestField == null) nestField = FindFirstObjectByType<NestField>();
@@ -185,6 +194,37 @@ public class Colony : MonoBehaviour
 
         // 前半：巣が空腹なら出る。後半：行列ができていれば釣られて出る
         ForageStimulus = Mathf.Clamp01(NestHungerAverage + EntranceTrail / trailMax * weight);
+
+        RecalculateDig(inNest);
+    }
+
+    /// <summary>掘る刺激を計算し直す（行動モデル.md 12-1）。狭いほど掘りたくなる。</summary>
+    private void RecalculateDig(int antsInNest)
+    {
+        if (grid == null) return;
+
+        if (cavityVersion != grid.Version) CountCavityCells();
+
+        Crowding = CavityCells > 0 ? (float)antsInNest / CavityCells : 0f;
+
+        float comfortable = settings != null ? settings.comfortableDensity : 0.3f;
+        float range = settings != null ? Mathf.Max(0.0001f, settings.crowdRange) : 0.3f;
+        DigStimulus = Mathf.Clamp01((Crowding - comfortable) / range);
+    }
+
+    /// <summary>巣の空洞のマス数を数える。地形が変わったときだけ。</summary>
+    private void CountCavityCells()
+    {
+        cavityVersion = grid.Version;
+        int count = 0;
+        for (int y = 0; y < grid.SurfaceRow; y++)
+        {
+            for (int x = 0; x < grid.Width; x++)
+            {
+                if (grid.GetCell(x, y) == CellType.Cavity) count++;
+            }
+        }
+        CavityCells = count;
     }
 
     /// <summary>入口のまわりの道しるべの濃さ（いちばん濃いマスを見る）。</summary>
@@ -208,5 +248,39 @@ public class Colony : MonoBehaviour
             }
         }
         return best;
+    }
+
+    /// <summary>
+    /// 巣の中で、その範囲にいるアリの数（自分は除く）。
+    /// 掘削で「アリがたまっている場所ほど掘られる」を判定するのに使う。
+    /// </summary>
+    public int CountNestmatesNear(Ant self, float radius)
+    {
+        if (self == null) return 0;
+
+        float size = BucketSize;
+        int centerX = Mathf.FloorToInt(self.Position.x / size);
+        int centerY = Mathf.FloorToInt(self.Position.y / size);
+        int range = Mathf.Max(1, Mathf.CeilToInt(radius / size));
+        float radiusSq = radius * radius;
+
+        int count = 0;
+        for (int dy = -range; dy <= range; dy++)
+        {
+            for (int dx = -range; dx <= range; dx++)
+            {
+                long key = ((long)(centerX + dx) << 32) ^ (uint)(centerY + dy);
+                System.Collections.Generic.List<Ant> list;
+                if (!buckets.TryGetValue(key, out list)) continue;
+
+                for (int i = 0; i < list.Count; i++)
+                {
+                    Ant other = list[i];
+                    if (other == null || other == self) continue;
+                    if ((other.Position - self.Position).sqrMagnitude <= radiusSq) count++;
+                }
+            }
+        }
+        return count;
     }
 }
