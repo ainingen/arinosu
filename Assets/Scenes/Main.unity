@@ -1547,7 +1547,7 @@ MonoBehaviour:
   nestColor: {r: 0.4, g: 0.7, b: 1, a: 1}
   overlayAlpha: 0.8
   sortingOrder: -5
-  dotSprite: {fileID: 21300000, guid: bd41c4384f537df4aa53b161ad9d8cd1, type: 3}
+  dotSprite: {fileID: 21300000, guid: a31a3a75f5944254ba5af423a54c9c46, type: 3}
   dotColor: {r: 1, g: 0.9, b: 0.2, a: 1}
   dotSize: 0.12
 --- !u!4 &1759574487

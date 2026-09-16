@@ -141,7 +141,10 @@ public class FoodSpawner : MonoBehaviour
     /// <summary>マスを決めて餌を作る。</summary>
     private FoodSource Create(int x, int groundY)
     {
+        // 粒のピボットは底辺にあるので、マスの中心ではなく
+        // そのマスの下辺（＝地面の表面）に置くと、地面にちょうど乗る
         Vector2 position = grid.CellToWorld(x, groundY);
+        position.y -= grid.CellSize * 0.5f;
         FoodSource food = Instantiate(foodPrefab, position, Quaternion.identity, foodParent);
         food.Setup(Random.Range(settings.foodAmountMin, settings.foodAmountMax + 1), settings);
         return food;

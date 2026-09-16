@@ -4,23 +4,17 @@ using UnityEngine;
 /// <summary>
 /// 地表に置かれた餌1個（行動モデル.md 5章）。段階3は糖分1種類。
 /// アリが1匹食べるたびに残量が1減り、0になると消える。
-/// 見た目は仮の丸（本体＋輪郭）。素材は段階3の終わりに差し替える。
+/// 見た目は art/food/README.md の粒の素材。ピボットが粒の底辺にあるので、
+/// 地表面の高さに置くと地面にちょうど乗る。
 /// </summary>
 [DisallowMultipleComponent]
 public class FoodSource : MonoBehaviour
 {
     [Header("パーツ")]
+    [Tooltip("粒の絵。色は画像に焼き込み済みなので、色は白のまま使う")]
     [SerializeField] private SpriteRenderer spriteRenderer;
-    [Tooltip("本体の後ろに一回り大きく描く輪郭")]
-    [SerializeField] private SpriteRenderer outlineRenderer;
-    [Tooltip("残量の数字（デバッグ表示。F1 と同じ切替で出る）")]
+    [Tooltip("残量の数字（デバッグ表示。Shift+1 と同じ切替で出る）")]
     [SerializeField] private TMPro.TMP_Text amountLabel;
-
-    [Header("色")]
-    [SerializeField] private Color bodyColor = new Color(0.961f, 0.722f, 0.180f, 1f);
-    [SerializeField] private Color outlineColor = new Color(0.20f, 0.12f, 0.02f, 1f);
-    [Tooltip("輪郭の太さ（本体に対する倍率）")]
-    [SerializeField] private float outlineScale = 1.22f;
 
     [Header("大きさ")]
     [Tooltip("この残量で最大の大きさになる")]
@@ -102,26 +96,43 @@ public class FoodSource : MonoBehaviour
         float t = fullAmount > 1 ? Mathf.Clamp01((amount - 1f) / (fullAmount - 1f)) : 1f;
         float diameter = Mathf.Max(minDiameter, Mathf.Lerp(minDiameter, maxDiameter, t));
 
-        ApplyRenderer(spriteRenderer, bodyColor, diameter);
-        ApplyRenderer(outlineRenderer, outlineColor, diameter * outlineScale);
+        float scale = ApplyRenderer(diameter);
 
         if (amountLabel != null)
         {
             amountLabel.text = amount.ToString();
-            amountLabel.transform.localPosition = new Vector3(0f, diameter * 0.5f + labelMargin, 0f);
+            amountLabel.transform.localPosition = new Vector3(0f, HeightAboveOrigin(scale) + labelMargin, 0f);
         }
     }
 
-    /// <summary>スプライト1枚の見かけの大きさを diameter（cm）にそろえる。</summary>
-    private void ApplyRenderer(SpriteRenderer renderer, Color color, float diameter)
+    /// <summary>
+    /// 横幅を直径とみなして、粒の見かけの大きさをそろえる。縦横比は変えない。
+    /// 色は画像に焼き込み済みなので触らない（白のまま）。
+    /// </summary>
+    private float ApplyRenderer(float diameter)
     {
-        if (renderer == null) return;
-        renderer.color = color;
+        if (spriteRenderer == null) return 1f;
 
-        Sprite sprite = renderer.sprite;
-        float spriteSize = sprite != null ? Mathf.Max(sprite.bounds.size.x, sprite.bounds.size.y) : 1f;
-        if (spriteSize <= 0f) spriteSize = 1f;
-        float scale = diameter / spriteSize;
-        renderer.transform.localScale = new Vector3(scale, scale, 1f);
+        Sprite sprite = spriteRenderer.sprite;
+        float spriteWidth = sprite != null ? sprite.bounds.size.x : 1f;
+        if (spriteWidth <= 0f) spriteWidth = 1f;
+
+        float scale = diameter / spriteWidth;
+        spriteRenderer.transform.localScale = new Vector3(scale, scale, 1f);
+        return scale;
+    }
+
+    /// <summary>
+    /// 粒の上端が、この GameObject の位置からどれだけ上にあるか。
+    /// ピボットが粒の底辺にあるので、数字を出す高さはここから決める。
+    /// </summary>
+    private float HeightAboveOrigin(float scale)
+    {
+        Sprite sprite = spriteRenderer != null ? spriteRenderer.sprite : null;
+        if (sprite == null) return 0f;
+
+        float heightUnits = sprite.bounds.size.y;
+        float pivotFromBottom = sprite.pivot.y / sprite.pixelsPerUnit;
+        return (heightUnits - pivotFromBottom) * scale;
     }
 }
