@@ -51,6 +51,8 @@ public class BroodField : MonoBehaviour
     [SerializeField] private GameClock clock;
     [SerializeField] private AntSpawner antSpawner;
     [SerializeField] private Colony colony;
+    [Tooltip("子どもの匂いを置く先。未指定ならシーンから探す")]
+    [SerializeField] private PheromoneField pheromones;
 
     [SerializeField] private List<BroodItem> items = new List<BroodItem>();
     /// <summary>マス（index）→ そこにある子ども。描画とクリック判定に使う。</summary>
@@ -58,6 +60,7 @@ public class BroodField : MonoBehaviour
     private readonly Stack<List<BroodItem>> listPool = new Stack<List<BroodItem>>();
 
     private double lastElapsedDays;
+    private float depositTimer;
 
     /// <summary>子どもの一覧。</summary>
     public IReadOnlyList<BroodItem> All => items;
@@ -69,6 +72,12 @@ public class BroodField : MonoBehaviour
     public int HatchedCount { get; private set; }
     /// <summary>これまでに死んだ子どもの数。</summary>
     public int BroodDeaths { get; private set; }
+    /// <summary>幼虫の空腹の平均（S_nurse に使う）。幼虫がいなければ 0。</summary>
+    public float LarvaHungerAverage { get; private set; }
+    /// <summary>今いる幼虫の数（S_forage の重み付けに使う）。</summary>
+    public int LarvaCount { get; private set; }
+    /// <summary>まわりに仲間がいない子どもの割合（S_nurse に使う）。</summary>
+    public float IsolatedRatio { get; private set; }
 
     private void Awake()
     {
@@ -76,6 +85,7 @@ public class BroodField : MonoBehaviour
         if (clock == null) clock = FindFirstObjectByType<GameClock>();
         if (antSpawner == null) antSpawner = FindFirstObjectByType<AntSpawner>();
         if (colony == null) colony = FindFirstObjectByType<Colony>();
+        if (pheromones == null) pheromones = FindFirstObjectByType<PheromoneField>();
     }
 
     private void Start()
@@ -140,6 +150,14 @@ public class BroodField : MonoBehaviour
         lastElapsedDays = now;
         if (deltaDays <= 0f) return;
 
+        depositTimer += Time.deltaTime;
+        bool deposit = depositTimer >= Mathf.Max(0.0001f, settings.depositInterval);
+        if (deposit) depositTimer = 0f;
+
+        float hungerSum = 0f;
+        int larvae = 0;
+        int isolated = 0;
+
         for (int i = items.Count - 1; i >= 0; i--)
         {
             BroodItem item = items[i];
@@ -148,8 +166,96 @@ public class BroodField : MonoBehaviour
             if (item.stage == BroodStage.Larva) UpdateLarva(item, deltaDays, i);
             if (i >= items.Count || items[i] != item) continue;   // 死んで取り除かれた
 
+            if (item.stage == BroodStage.Larva)
+            {
+                larvae++;
+                hungerSum += item.Hunger;
+            }
+            if (deposit)
+            {
+                Deposit(item);
+                if (IsIsolated(item)) isolated++;
+            }
+
             AdvanceStage(item, i);
         }
+
+        LarvaCount = larvae;
+        LarvaHungerAverage = larvae > 0 ? hungerSum / larvae : 0f;
+        if (deposit) IsolatedRatio = items.Count > 0 ? (float)isolated / items.Count : 0f;
+    }
+
+    /// <summary>
+    /// 子どもが置かれているマスに匂いを置く（行動モデル.md 13-3）。
+    /// 運ばれている間は置かない（塊の判定が運搬中のアリについて回らないように）。
+    /// </summary>
+    private void Deposit(BroodItem item)
+    {
+        if (pheromones == null || item.carriedBy != null) return;
+
+        pheromones.DepositAt(item.cellX, item.cellY, PheromoneLayer.Brood, settings.broodDeposit);
+
+        if (item.stage != BroodStage.Larva) return;
+        float hunger = item.Hunger;
+        if (hunger <= 0f) return;
+        pheromones.DepositAt(item.cellX, item.cellY, PheromoneLayer.LarvaHunger,
+            hunger * settings.larvaHungerDeposit);
+    }
+
+    /// <summary>まわり1マスに他の子どもがいないか（行動モデル.md 13-4）。</summary>
+    private bool IsIsolated(BroodItem item)
+    {
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                List<BroodItem> list = GetAtCell(item.cellX + dx, item.cellY + dy);
+                if (list == null) continue;
+                // 自分だけのマスは「いない」と同じ
+                if (dx == 0 && dy == 0 && list.Count <= 1) continue;
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// 近くでいちばん空腹な幼虫を返す（行動モデル.md 13-4）。
+    /// 運ばれている子どもは相手にしない。
+    /// </summary>
+    public BroodItem FindHungryLarva(Vector2 worldPosition, float range, float hungerThreshold)
+    {
+        if (grid == null) return null;
+        float rangeSq = range * range;
+        BroodItem best = null;
+        float bestHunger = hungerThreshold;
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            BroodItem item = items[i];
+            if (item.stage != BroodStage.Larva || item.carriedBy != null) continue;
+            if (item.Hunger <= bestHunger) continue;
+            if ((grid.CellToWorld(item.cellX, item.cellY) - worldPosition).sqrMagnitude > rangeSq) continue;
+            bestHunger = item.Hunger;
+            best = item;
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// 幼虫に口移しで食べさせる（行動モデル.md 13-2）。実際に入った量を返す。
+    /// もらった量の growthPerCrop 倍だけ体が育つ。
+    /// </summary>
+    public float Feed(BroodItem item, float amount)
+    {
+        if (item == null || settings == null || amount <= 0f) return 0f;
+        float accepted = Mathf.Min(amount, 1f - item.crop);
+        if (accepted <= 0f) return 0f;
+
+        item.crop += accepted;
+        item.starveDays = 0f;
+        item.size = Mathf.Clamp01(item.size + accepted * settings.growthPerCrop);
+        return accepted;
     }
 
     /// <summary>幼虫の飢えと成長。段階5aでは常に満腹として扱う。</summary>

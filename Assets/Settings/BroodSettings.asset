@@ -15,6 +15,11 @@ MonoBehaviour:
   queenBegThreshold: 0.4
   queenMetabolism: 1.5
   queenWalkSpeed: 0.3
+  queenWanderChance: 0.01
+  queenWanderSeconds: 2
+  queenNestBias: 3
+  queenMinNest: 0.9
+  queenHungerDeposit: 1
   layPerDay: 2
   layMinCrop: 0.5
   layCost: 0.05
@@ -22,18 +27,24 @@ MonoBehaviour:
   larvaDays: 20
   pupaDays: 18
   stageDurationScale: 1
-  larvaAlwaysFed: 1
+  larvaAlwaysFed: 0
   larvaFullToEmptyDays: 1
   growthPerCrop: 0.35
   larvaStarveDays: 2
+  feedAmount: 0.2
+  larvaHungerThreshold: 0.2
+  broodSenseRange: 1.5
+  nurseGiveUpSeconds: 20
+  larvaForageWeight: 0.5
+  nurseHungerWeight: 0.7
+  nurseIsolationWeight: 0.3
+  broodDeposit: 1
+  larvaHungerDeposit: 1
+  depositInterval: 0.1
   newAdultCrop: 0.5
   initialEggs: 8
   initialLarvae: 6
   initialPupae: 4
   workerLifespanDays: 180
   lifespanVariation: 0.2
-  eggSize: 0.22
-  larvaSizeMin: 0.25
-  larvaSizeMax: 0.5
-  pupaSize: 0.45
   maxDrawnPerCell: 4

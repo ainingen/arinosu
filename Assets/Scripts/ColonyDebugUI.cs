@@ -79,15 +79,10 @@ public class ColonyDebugUI : MonoBehaviour
         sb.AppendLine("社会胃の平均＝" + cropAverage.ToString("0.00"));
         sb.AppendLine("閾値θの平均＝" + colony.ThetaAverage.ToString("0.00"));
 
-        int digging = 0;
-        for (int i = 0; i < total; i++)
-        {
-            Ant ant = Ant.All[i];
-            if (ant != null && ant.CurrentTask == AntTask.Dig) digging++;
-        }
+        sb.AppendLine(BuildTaskText());
         sb.AppendLine("掘る刺激 S_dig＝" + colony.DigStimulus.ToString("0.00"));
-        sb.AppendLine("　巣の空洞＝" + colony.CavityCells + " / 目標 " + colony.TargetCavityCells + "マス"
-            + "／掘っている＝" + digging + "匹");
+        sb.AppendLine("　巣の空洞＝" + colony.CavityCells + " / 目標 " + colony.TargetCavityCells + "マス");
+        sb.AppendLine("育児の刺激 S_nurse＝" + colony.NurseStimulus.ToString("0.00"));
         sb.AppendLine("土：掘った " + colony.DugCells + "／塚に置いた " + colony.MoundCells
             + "／捨てた " + colony.DiscardedSoil);
         sb.AppendLine(BuildFoodText());
@@ -102,12 +97,66 @@ public class ColonyDebugUI : MonoBehaviour
                 Ant ant = Ant.All[i];
                 if (ant != null && ant.IsQueen) queens++;
             }
-            sb.Append("女王 " + queens + "／卵 " + brood.CountOf(BroodStage.Egg)
+            sb.AppendLine("女王 " + queens + "／卵 " + brood.CountOf(BroodStage.Egg)
                 + "／幼虫 " + brood.CountOf(BroodStage.Larva)
                 + "／繭 " + brood.CountOf(BroodStage.Pupa)
                 + "／羽化 " + brood.HatchedCount + "匹");
+            sb.Append("　幼虫の空腹の平均＝" + brood.LarvaHungerAverage.ToString("0.00")
+                + "／はぐれ " + (brood.IsolatedRatio * 100f).ToString("0") + "%"
+                + "／幼虫の餓死 累計 " + brood.BroodDeaths + "匹");
         }
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// 仕事ごとの匹数と、その日齢の平均。
+    /// 若いアリが育児、年長が採餌に寄っているかを数字で見るため（行動モデル.md 13-5）。
+    /// </summary>
+    private string BuildTaskText()
+    {
+        int[] counts = new int[4];
+        float[] ages = new float[4];
+
+        var ants = Ant.All;
+        for (int i = 0; i < ants.Count; i++)
+        {
+            Ant ant = ants[i];
+            if (ant == null || ant.IsQueen) continue;
+            int slot = SlotOf(ant.CurrentTask);
+            counts[slot]++;
+            ages[slot] += ant.AgeDays;
+        }
+
+        return "仕事：" + Part("採餌", counts[0], ages[0])
+            + "／" + Part("掘削", counts[1], ages[1])
+            + "／" + Part("育児", counts[2], ages[2])
+            + "／" + Part("巣で待機", counts[3], ages[3]);
+    }
+
+    /// <summary>「育児 12匹(日齢6)」のような1項目。</summary>
+    private string Part(string name, int count, float ageSum)
+    {
+        if (count == 0) return name + " 0匹";
+        return name + " " + count + "匹(日齢" + (ageSum / count).ToString("0") + ")";
+    }
+
+    /// <summary>仕事を4つの区分にまとめる。</summary>
+    private int SlotOf(AntTask task)
+    {
+        switch (task)
+        {
+            case AntTask.Explore:
+            case AntTask.ReturnWithFood:
+            case AntTask.ReturnEmpty:
+                return 0;
+            case AntTask.Dig:
+            case AntTask.CarrySoilOut:
+                return 1;
+            case AntTask.Nurse:
+                return 2;
+            default:
+                return 3;
+        }
     }
 
     /// <summary>

@@ -25,6 +25,8 @@ public class Ant : MonoBehaviour
     [SerializeField] private MoundBuilder mound;
     [Tooltip("生活環の設定（女王と寿命に使う）。未指定ならシーンから探す")]
     [SerializeField] private BroodSettings broodSettings;
+    [Tooltip("子どもの一覧（育児に使う）。未指定ならシーンから探す")]
+    [SerializeField] private BroodField broodField;
 
     [Header("移動の刻み")]
     [Tooltip("1回の計算で進む最大距離。1マス(0.2cm)の半分までなら壁をすり抜けない")]
@@ -83,9 +85,12 @@ public class Ant : MonoBehaviour
     private float carryLoad;
     /// <summary>仕事ごとの閾値（腰の重さ）。学習で動く（行動モデル.md 12-2）</summary>
     private readonly float[] theta = new float[ThetaCount];
+    /// <summary>判定する順番（毎回混ぜる）</summary>
+    private readonly int[] thetaOrder = { ThetaExplore, ThetaDig, ThetaNurse };
     private const int ThetaExplore = 0;
     private const int ThetaDig = 1;
-    private const int ThetaCount = 2;
+    private const int ThetaNurse = 2;
+    private const int ThetaCount = 3;
 
     // ---- 掘削（行動モデル.md 12章）----
     /// <summary>掘り終わるまでの残り時間。0 より大きいあいだは止まって掘っている</summary>
@@ -96,6 +101,12 @@ public class Ant : MonoBehaviour
     private float dumpTimer;
     /// <summary>今掘っているマス</summary>
     private int digCellX, digCellY;
+
+    // ---- 育児（行動モデル.md 13-4）----
+    /// <summary>世話する相手を探して歩いている時間。長すぎたら巣の仕事に戻る</summary>
+    private float nurseSearchTimer;
+    /// <summary>今まさに幼虫へ食べさせたところか（気持ちの表示に使う）</summary>
+    private bool feedingNow;
 
     // ---- 女王（行動モデル.md 13-1）----
     /// <summary>女王が歩いている残り時間。0 のあいだはその場から動かない</summary>
@@ -147,6 +158,8 @@ public class Ant : MonoBehaviour
     public float ExploreThreshold => theta[ThetaExplore];
     /// <summary>Dig の閾値。低いほど掘りやすい。</summary>
     public float DigThreshold => theta[ThetaDig];
+    /// <summary>育児の腰の重さ。</summary>
+    public float NurseThreshold => theta[ThetaNurse];
     /// <summary>今、土を掘っている最中か。</summary>
     public bool IsDigging => digTimer > 0f;
     /// <summary>巣の中にいるか（巣の匂いの濃さで決まる）。</summary>
@@ -204,6 +217,7 @@ public class Ant : MonoBehaviour
             // 巣の外にいて、巣の匂いがほとんど届いていない
             if (!isInNest && nestHere < settings.nestFar) return AntMood.FarFromNest;
             if (task == AntTask.Dig) return AntMood.Digging;
+            if (task == AntTask.Nurse) return feedingNow ? AntMood.Feeding : AntMood.SeekingHungryBrood;
             if (task == AntTask.Explore && lastFollowProbability > settings.moodFollowThreshold) return AntMood.FollowingTrail;
             if (task == AntTask.Explore) return AntMood.Searching;
             if (sharePartner != null) return AntMood.Sharing;
@@ -241,8 +255,8 @@ public class Ant : MonoBehaviour
         if (nestField == null) nestField = FindFirstObjectByType<NestField>();
         if (colony == null) colony = FindFirstObjectByType<Colony>();
         if (mound == null) mound = FindFirstObjectByType<MoundBuilder>();
-        if (broodSettings == null) broodSettings = FindFirstObjectByType<BroodField>() != null
-            ? FindFirstObjectByType<BroodField>().Settings : null;
+        if (broodField == null) broodField = FindFirstObjectByType<BroodField>();
+        if (broodSettings == null && broodField != null) broodSettings = broodField.Settings;
         clock = FindFirstObjectByType<GameClock>();
         if (clock != null) bornAtElapsedDays = clock.ElapsedDays;
     }
@@ -283,6 +297,8 @@ public class Ant : MonoBehaviour
             theta[ThetaExplore] = Mathf.Clamp(1f - AgeDays / Mathf.Max(0.0001f, settings.matureDays), 0.15f, 0.95f);
             // 掘削は内勤と外勤の中間なので、日齢では決めず一定値から始める
             theta[ThetaDig] = settings.thetaDigInitial;
+            // 育児も今は一定値から始める（日齢の曲線にするのは段階5b-2）
+            theta[ThetaNurse] = settings.thetaNurseInitial;
         }
 
         // 寿命を個体ごとにばらつかせる（女王は段階5では死なない）
@@ -368,6 +384,9 @@ public class Ant : MonoBehaviour
                 break;
             case AntTask.CarrySoilOut:
                 CarrySoilOutStep(tickTime, inside);
+                break;
+            case AntTask.Nurse:
+                NurseStep(tickTime, inside);
                 break;
             default:
                 task = AntTask.RestInNest;
@@ -854,28 +873,29 @@ public class Ant : MonoBehaviour
         if (sharePartner != null) return;   // 分け合っている最中は出発しない
 
         // 仕事ごとに P = S²/(S²+θ²) を出し、順番の偏りが出ないよう順序をランダムにして判定する
-        bool digFirst = Random.value < 0.5f;
+        ShuffleThetaOrder();
         for (int i = 0; i < ThetaCount; i++)
         {
-            bool checkDig = digFirst ? (i == 0) : (i == 1);
-            int index = checkDig ? ThetaDig : ThetaExplore;
-            float stimulus = colony != null
-                ? (checkDig ? colony.DigStimulus : colony.ForageStimulus)
-                : 0f;
-
+            int index = thetaOrder[i];
+            float stimulus = StimulusOf(index);
             if (stimulus <= 0f) continue;
+
             float probability = (stimulus * stimulus) / (stimulus * stimulus + theta[index] * theta[index]);
             if (Random.value >= probability) continue;
 
             // この仕事に就いた。次はもう少し就きやすくなる
-            task = checkDig ? AntTask.Dig : AntTask.Explore;
+            task = TaskOf(index);
             timeOutside = 0f;
             targetFood = null;
+            nurseSearchTimer = 0f;
             theta[index] = Mathf.Clamp(theta[index] - settings.thetaLearn, settings.thetaMin, settings.thetaMax);
 
-            // 選ばなかったほうの腰は重くなる
-            int other = index == ThetaDig ? ThetaExplore : ThetaDig;
-            theta[other] = Mathf.Clamp(theta[other] + settings.thetaForget, settings.thetaMin, settings.thetaMax);
+            // 選ばなかった仕事の腰は重くなる
+            for (int j = 0; j < ThetaCount; j++)
+            {
+                if (j == index) continue;
+                theta[j] = Mathf.Clamp(theta[j] + settings.thetaForget, settings.thetaMin, settings.thetaMax);
+            }
             return;
         }
 
@@ -884,6 +904,129 @@ public class Ant : MonoBehaviour
         {
             theta[i] = Mathf.Clamp(theta[i] + settings.thetaForget, settings.thetaMin, settings.thetaMax);
         }
+    }
+
+    /// <summary>その仕事の刺激（コロニーが計算したもの）。</summary>
+    private float StimulusOf(int thetaIndex)
+    {
+        if (colony == null) return 0f;
+        switch (thetaIndex)
+        {
+            case ThetaDig: return colony.DigStimulus;
+            case ThetaNurse: return colony.NurseStimulus;
+            default: return colony.ForageStimulus;
+        }
+    }
+
+    /// <summary>閾値の番号に対応する仕事。</summary>
+    private AntTask TaskOf(int thetaIndex)
+    {
+        switch (thetaIndex)
+        {
+            case ThetaDig: return AntTask.Dig;
+            case ThetaNurse: return AntTask.Nurse;
+            default: return AntTask.Explore;
+        }
+    }
+
+    /// <summary>判定する順番を混ぜる（先に見た仕事が有利にならないように）。</summary>
+    private void ShuffleThetaOrder()
+    {
+        for (int i = ThetaCount - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            int tmp = thetaOrder[i];
+            thetaOrder[i] = thetaOrder[j];
+            thetaOrder[j] = tmp;
+        }
+    }
+
+    // ---- 育児（行動モデル.md 13-4）----
+
+    /// <summary>
+    /// 幼虫の世話。空腹の匂いを登り、見つけた幼虫に口移しで食べさせる。
+    /// 1回食べさせたら巣の仕事に戻る（掘削と同じ作り）。
+    /// 相手が見つからないまま歩き回っていると、そのうち諦める。
+    /// </summary>
+    private void NurseStep(float tickTime, bool inside)
+    {
+        timeOutside = 0f;
+        if (sharePartner != null) return;
+
+        // 触れた相手と差があれば口移しは起きる。空腹の女王も同じ匂いを出すので、
+        // 育児係が匂いをたどってたどり着き、接触して流れる（行動モデル.md 13-1）
+        if (TryStartSharing()) return;
+
+        if (!inside)
+        {
+            SteerAlongNest(tickTime, true, settings.turnGain);
+            AddWanderNoise(tickTime, settings.wanderSigma * 0.5f);
+            return;
+        }
+
+        nurseSearchTimer += tickTime;
+        if (nurseSearchTimer > NurseGiveUpSeconds)
+        {
+            task = AntTask.RestInNest;
+            nurseSearchTimer = 0f;
+            return;
+        }
+
+        // 自分が分けられるだけ持っていないなら、育児はいったんやめる
+        if (broodField == null || broodSettings == null || crop <= broodSettings.feedAmount)
+        {
+            task = AntTask.RestInNest;
+            nurseSearchTimer = 0f;
+            return;
+        }
+
+        BroodItem larva = broodField.FindHungryLarva(position, broodSettings.broodSenseRange,
+            broodSettings.larvaHungerThreshold);
+        if (larva != null && WithinContact(larva))
+        {
+            FeedLarva(larva);
+            return;
+        }
+        feedingNow = false;
+
+        // 相手が遠い、または見つからない：空腹の匂いの濃い側へ登る
+        SteerAlongLarvaHunger(tickTime);
+        AddWanderNoise(tickTime, settings.wanderSigma);
+    }
+
+    /// <summary>諦めるまでの時間（設定がなければ既定値）。</summary>
+    private float NurseGiveUpSeconds => broodSettings != null ? broodSettings.nurseGiveUpSeconds : 20f;
+
+    /// <summary>その幼虫に口が届くか。</summary>
+    private bool WithinContact(BroodItem larva)
+    {
+        if (grid == null) return false;
+        Vector2 target = grid.CellToWorld(larva.cellX, larva.cellY);
+        return (target - position).sqrMagnitude <= settings.contactRange * settings.contactRange;
+    }
+
+    /// <summary>幼虫に一定量を流す。流した分は自分の社会胃から引く。</summary>
+    private void FeedLarva(BroodItem larva)
+    {
+        float given = broodField.Feed(larva, Mathf.Min(broodSettings.feedAmount, crop));
+        crop = Mathf.Clamp01(crop - given);
+        feedingNow = true;
+
+        // 1回で満たなくても、いったん巣の仕事に戻って選び直す
+        task = AntTask.RestInNest;
+        nurseSearchTimer = 0f;
+    }
+
+    /// <summary>幼虫の空腹の匂いの濃い側へ曲がる。</summary>
+    private void SteerAlongLarvaHunger(float tickTime)
+    {
+        if (pheromones == null) return;
+        Vector2 leftPoint, rightPoint;
+        GetSensorPoints(out leftPoint, out rightPoint);
+        SteerByGradient(
+            pheromones.Sample(leftPoint, PheromoneLayer.LarvaHunger),
+            pheromones.Sample(rightPoint, PheromoneLayer.LarvaHunger),
+            true, settings.turnGain, tickTime);
     }
 
     /// <summary>外を探す。</summary>

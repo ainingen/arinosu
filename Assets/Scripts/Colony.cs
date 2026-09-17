@@ -14,6 +14,8 @@ public class Colony : MonoBehaviour
     [SerializeField] private NestField nestField;
     [SerializeField] private PheromoneField pheromones;
     [SerializeField] private SoilGrid grid;
+    [Tooltip("育児の刺激に使う。未指定ならシーンから探す")]
+    [SerializeField] private BroodField broodField;
 
     [Tooltip("巣の中のアリの位置表を作り直す間隔（秒）。口移しの相手探しに使う")]
     [SerializeField] private float neighborRebuildInterval = 0.25f;
@@ -43,6 +45,8 @@ public class Colony : MonoBehaviour
 
     /// <summary>掘る刺激（0〜1）。巣が目標の広さより狭いほど大きい。</summary>
     public float DigStimulus { get; private set; }
+    /// <summary>育児の刺激 S_nurse（行動モデル.md 13-4）。</summary>
+    public float NurseStimulus { get; private set; }
     /// <summary>混雑度（コロニーの総個体数 ÷ 空洞のマス数）。出入りでは変わらない。</summary>
     public float Crowding { get; private set; }
     /// <summary>巣の空洞のマス数。</summary>
@@ -204,7 +208,21 @@ public class Colony : MonoBehaviour
 
         AntsInNest = inNest;
         AntsOutside = outside;
-        NestHungerAverage = inNest > 0 ? hungerSum / inNest : 0f;
+
+        // 巣の空腹には、女王（巣の中のアリなのでそのまま入る）と幼虫も混ぜる。
+        // 子どもが飢えると、育児係だけでなく採餌にも人手が回るようにするため（13-4）
+        if (broodField == null) broodField = FindFirstObjectByType<BroodField>();
+        float larvaWeight = 0f;
+        float larvaHungerSum = 0f;
+        var broodSettings = broodField != null ? broodField.Settings : null;
+        if (broodField != null && broodSettings != null && broodField.LarvaCount > 0)
+        {
+            larvaWeight = broodField.LarvaCount * broodSettings.larvaForageWeight;
+            larvaHungerSum = broodField.LarvaHungerAverage * larvaWeight;
+        }
+
+        float mouths = inNest + larvaWeight;
+        NestHungerAverage = mouths > 0f ? (hungerSum + larvaHungerSum) / mouths : 0f;
         ThetaAverage = ants.Count > 0 ? thetaSum / ants.Count : 0f;
         EntranceTrail = SampleEntranceTrail();
 
@@ -214,7 +232,25 @@ public class Colony : MonoBehaviour
         // 前半：巣が空腹なら出る。後半：行列ができていれば釣られて出る
         ForageStimulus = Mathf.Clamp01(NestHungerAverage + EntranceTrail / trailMax * weight);
 
+        RecalculateNurse(broodSettings);
         RecalculateDig();
+    }
+
+    /// <summary>
+    /// 育児の刺激を計算し直す（行動モデル.md 13-4）。
+    /// 幼虫が空腹なほど、また子どもがはぐれているほど強くなる。
+    /// </summary>
+    private void RecalculateNurse(BroodSettings broodSettings)
+    {
+        if (broodField == null || broodSettings == null)
+        {
+            NurseStimulus = 0f;
+            return;
+        }
+
+        NurseStimulus = Mathf.Clamp01(
+            broodField.LarvaHungerAverage * broodSettings.nurseHungerWeight
+            + broodField.IsolatedRatio * broodSettings.nurseIsolationWeight);
     }
 
     /// <summary>

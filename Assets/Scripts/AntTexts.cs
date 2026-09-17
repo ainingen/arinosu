@@ -90,6 +90,10 @@ public enum AntMood
     Digging,
     /// <summary>掘った土を外へ運んでいる</summary>
     CarryingSoil,
+    /// <summary>育児：幼虫に食べさせている</summary>
+    Feeding,
+    /// <summary>育児：空腹の子どもを探している</summary>
+    SeekingHungryBrood,
     /// <summary>女王：卵を産んだ直後</summary>
     QueenLaid,
     /// <summary>女王：空腹</summary>
@@ -232,6 +236,8 @@ public static class AntTexts
             case AntMood.Sharing: return "分け合っている";
             case AntMood.Digging: return "ここを広げる";
             case AntMood.CarryingSoil: return "土を外へ運ぶ";
+            case AntMood.Feeding: return "この子に分けてやろう";
+            case AntMood.SeekingHungryBrood: return "お腹をすかせた子がいる";
             case AntMood.QueenLaid: return "卵を産んだ";
             case AntMood.QueenHungry: return "お腹がすいた。誰か";
             case AntMood.QueenCalm: return "静かだ";

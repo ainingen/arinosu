@@ -153,6 +153,8 @@ public class AntSettings : ScriptableObject
     [Range(0.05f, 1f)] public float digShortfallRange = 0.5f;
     [Tooltip("掘削の閾値の初期値。日齢に依存しない一定値")]
     [Range(0f, 1f)] public float thetaDigInitial = 0.5f;
+    [Tooltip("育児の閾値の初期値。日齢の曲線にするのは段階5b-2")]
+    [Range(0f, 1f)] public float thetaNurseInitial = 0.5f;
 
     [Header("掘削：掘る場所（行動モデル.md 12-3）")]
     [Tooltip("どこでも掘る基礎の確率（知覚tickごと）")]
@@ -192,6 +194,11 @@ public class AntSettings : ScriptableObject
     public float dumpGiveUpSeconds = 20f;
 
     [Header("子どもの匂い（行動モデル.md 13-3）")]
+    [Tooltip("子どもの匂いが半分になるまでの時間（ゲーム内秒）")]
+    public float broodHalfLife = 20f;
+    [Tooltip("子どもの匂いを1回の拡散で隣へ渡す割合の合計")]
+    [Range(0f, 1f)] public float broodDiffusion = 0.05f;
+    public float broodMax = 10f;
     [Tooltip("幼虫の空腹の匂いが半分になるまでの時間（ゲーム内秒）")]
     public float larvaHungerHalfLife = 10f;
     [Tooltip("幼虫の空腹の匂いを1回の拡散で隣へ渡す割合の合計")]

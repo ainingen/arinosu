@@ -42,7 +42,7 @@ public class BroodSettings : ScriptableObject
     public float stageDurationScale = 1f;
 
     [Header("幼虫")]
-    [Tooltip("段階5aでは幼虫を常に満腹として扱う（給餌は段階5b）")]
+    [Tooltip("幼虫を常に満腹として扱う（段階5a の確認用。5b からはオフ）")]
     public bool larvaAlwaysFed = true;
     [Tooltip("幼虫が満腹から空腹になるまでの日数")]
     public float larvaFullToEmptyDays = 1f;
@@ -50,6 +50,30 @@ public class BroodSettings : ScriptableObject
     public float growthPerCrop = 0.35f;
     [Tooltip("空腹のまま何日で死ぬか")]
     public float larvaStarveDays = 2f;
+
+    [Header("育児（行動モデル.md 13-4／13-6）")]
+    [Tooltip("1回の給餌で幼虫へ流す量。育児係の社会胃から引く")]
+    public float feedAmount = 0.2f;
+    [Tooltip("これより空腹な幼虫を、給餌の相手として探す")]
+    [Range(0f, 1f)] public float larvaHungerThreshold = 0.2f;
+    [Tooltip("給餌の相手を見つけられる範囲（cm）")]
+    public float broodSenseRange = 1.5f;
+    [Tooltip("相手が見つからないまま歩き続けたら、巣の仕事に戻るまでの時間（秒）")]
+    public float nurseGiveUpSeconds = 20f;
+    [Tooltip("採餌の刺激に幼虫の空腹を混ぜるときの重み（働きアリ1匹＝1.0）")]
+    [Range(0f, 2f)] public float larvaForageWeight = 0.5f;
+    [Tooltip("育児の刺激のうち、幼虫の空腹が占める割合")]
+    [Range(0f, 1f)] public float nurseHungerWeight = 0.7f;
+    [Tooltip("育児の刺激のうち、はぐれた子どもの割合が占める割合")]
+    [Range(0f, 1f)] public float nurseIsolationWeight = 0.3f;
+
+    [Header("子どもの匂いの置き方（行動モデル.md 13-3）")]
+    [Tooltip("子ども1個が1回に置く「子どもの匂い」の量")]
+    public float broodDeposit = 1f;
+    [Tooltip("空腹な幼虫が置く量の倍率（量は hunger × これ）")]
+    public float larvaHungerDeposit = 1f;
+    [Tooltip("匂いを置き直す間隔（ゲーム内秒）")]
+    public float depositInterval = 0.1f;
 
     [Header("新しく羽化した働きアリ")]
     [Range(0f, 1f)] public float newAdultCrop = 0.5f;
