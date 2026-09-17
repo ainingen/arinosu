@@ -183,6 +183,12 @@ public class AntSettings : ScriptableObject
     [Tooltip("この範囲の空洞がこれを超えたら、部屋を広げる項を止める")]
     public int roomMaxCells = 60;
 
+    [Header("深さの目標（行動モデル.md 13-15）")]
+    [Tooltip("目標にする空洞マスを探す範囲（cm）")]
+    public float depthSearchRadius = 3f;
+    [Tooltip("目標を探し直す間隔（ゲーム内秒）。毎tick探すと重いので間引く")]
+    public float depthTargetInterval = 1f;
+
     [Header("休む場所（行動モデル.md 13-15）")]
     [Tooltip("外へ出慣れた個体（θ[Explore]が低い）が休む深さ。0＝入口、1＝いちばん奥")]
     [Range(0f, 1f)] public float restDepthLow = 0.2f;

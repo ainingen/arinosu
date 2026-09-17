@@ -37,6 +37,11 @@ public class NestField : MonoBehaviour
     public float MaxCavityValue { get; private set; }
     /// <summary>入口からいちばん遠い空洞までの経路距離（マス）。深さの基準が効いているかの確認に使う。</summary>
     public int MaxCavityDistance { get; private set; }
+    /// <summary>いちばん奥のマス。女王がここを目指す（行動モデル.md 13-15）。</summary>
+    public int DeepestCellX { get; private set; }
+    public int DeepestCellY { get; private set; }
+    /// <summary>いちばん奥のマスが見つかっているか。</summary>
+    public bool HasDeepestCell => DeepestCellX >= 0;
 
     /// <summary>
     /// そのマスの深さ（0＝入口、1＝いちばん奥）。行動モデル.md 13-15。
@@ -63,6 +68,51 @@ public class NestField : MonoBehaviour
         int x, y;
         if (!grid.WorldToCell(worldPosition, out x, out y)) return 0f;
         return GetDepth01(x, y);
+    }
+
+    /// <summary>
+    /// 目標の深さにいちばん近い空洞のマスを、半径 radius（cm）の中から探す（行動モデル.md 13-15）。
+    ///
+    /// 勾配に沿って曲がるやり方は、深さの差が小さいとふらつきに負けてしまう。
+    /// 「近くで、いちばん目標に近いマス」を目印にして、そこへ向かって歩くほうが確実に届く。
+    /// 同じくらい合うマスが複数あれば、近いほうを選ぶ。
+    /// </summary>
+    public bool FindCellNearDepth(Vector2 from, float targetDepth, float radius,
+        out int bestX, out int bestY)
+    {
+        bestX = -1;
+        bestY = -1;
+        EnsureBuilt();
+        if (grid == null || values == null) return false;
+
+        int cx, cy;
+        if (!grid.WorldToCell(from, out cx, out cy)) return false;
+
+        int r = Mathf.CeilToInt(radius / grid.CellSize);
+        int maxDistance = Mathf.Max(1, MaxCavityDistance);
+        float bestScore = float.MaxValue;
+
+        for (int dy = -r; dy <= r; dy++)
+        {
+            for (int dx = -r; dx <= r; dx++)
+            {
+                int squared = dx * dx + dy * dy;
+                if (squared > r * r) continue;
+
+                int x = cx + dx;
+                int y = cy + dy;
+                if (!grid.IsInside(x, y) || grid.GetCell(x, y) != CellType.Cavity) continue;
+
+                float depth = Mathf.Clamp01((float)distances[y * width + x] / maxDistance);
+                float score = Mathf.Abs(depth - targetDepth) * 100f + squared * 0.001f;
+                if (score >= bestScore) continue;
+
+                bestScore = score;
+                bestX = x;
+                bestY = y;
+            }
+        }
+        return bestX >= 0;
     }
     /// <summary>層の中身（デバッグ表示用。書き換えないこと）。</summary>
     public float[] Values => values;
@@ -129,6 +179,8 @@ public class NestField : MonoBehaviour
         hasEntrance = false;
         MaxCavityValue = 0f;
         MaxCavityDistance = 0;
+        DeepestCellX = -1;
+        DeepestCellY = -1;
 
         float entranceValue = settings != null ? settings.nestEntranceValue : 0.8f;
         float deepValue = settings != null ? settings.nestDeepValue : 1f;
@@ -177,7 +229,12 @@ public class NestField : MonoBehaviour
             // 経路距離が nestDeepDistance を超えると濃さは 1.0 で頭打ちになるので、
             // 「奥ほど濃い」が効かなくなっていないかを、この2つで見る
             if (values[index] > MaxCavityValue) MaxCavityValue = values[index];
-            if (distance > MaxCavityDistance) MaxCavityDistance = distance;
+            if (distance > MaxCavityDistance || DeepestCellX < 0)
+            {
+                MaxCavityDistance = distance;
+                DeepestCellX = x;
+                DeepestCellY = y;
+            }
 
             PushCavityNeighbors(x, y, distance, ref tail);
         }

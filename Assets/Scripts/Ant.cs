@@ -119,6 +119,14 @@ public class Ant : MonoBehaviour
     /// <summary>子どもを持ってからの時間。長すぎたらその場に置く</summary>
     private float carryBroodTimer;
 
+    // ---- 深さの目標（行動モデル.md 13-15）----
+    /// <summary>今めざしている深さのマス（-1 なら未設定）</summary>
+    private int depthTargetX = -1, depthTargetY = -1;
+    /// <summary>その目標を決めたときの狙いの深さ</summary>
+    private float depthTargetValue = -1f;
+    /// <summary>目標を探し直すまでの残り時間</summary>
+    private float depthTargetTimer;
+
     // ---- 女王（行動モデル.md 13-1）----
     /// <summary>女王が歩いている残り時間。0 のあいだはその場から動かない</summary>
     private float queenWalkTimer;
@@ -519,6 +527,14 @@ public class Ant : MonoBehaviour
         if (queenWalkTimer > 0f)
         {
             queenWalkTimer -= tickTime;
+
+            // いちばん奥のマスを目印にして、そこへ直接向かう（行動モデル.md 13-15）
+            if (nestField != null && nestField.HasDeepestCell)
+            {
+                SteerTowardCell(nestField.DeepestCellX, nestField.DeepestCellY, tickTime);
+                return;
+            }
+
             float bias = broodSettings != null ? broodSettings.queenNestBias : 1f;
             SteerAlongDepth(tickTime, true, settings.homingBias * bias);
             AddWanderNoise(tickTime, settings.wanderSigma * 0.3f);
@@ -1181,6 +1197,8 @@ public class Ant : MonoBehaviour
 
         float t = Mathf.InverseLerp(settings.thetaMin, settings.thetaMax, theta[ThetaExplore]);
         float target = Mathf.Lerp(settings.restDepthLow, settings.restDepthHigh, t);
+        if (SteerTowardDepth(tickTime, target)) return;
+
         bool deeper = nestField.SampleDepth01(position) < target;
         SteerAlongDepth(tickTime, deeper, settings.homingBias);
     }
@@ -1288,6 +1306,37 @@ public class Ant : MonoBehaviour
 
         task = AntTask.RestInNest;
         nurseSearchTimer = 0f;
+        return true;
+    }
+
+    /// <summary>
+    /// 目標の深さにいちばん近い空洞マスへ向かって歩く（行動モデル.md 13-15）。
+    ///
+    /// 勾配で曲がるやり方だと、深さの差が小さいときに曲がる角度がほぼ 0 になり、
+    /// ふらつきに負けて届かない。近くの目印を決めて、そこへ直接向かう。
+    /// 見つからなければ false を返すので、呼んだ側が従来の勾配に落とす。
+    /// </summary>
+    private bool SteerTowardDepth(float tickTime, float targetDepth)
+    {
+        if (nestField == null || grid == null) return false;
+
+        depthTargetTimer -= tickTime;
+        bool changed = !Mathf.Approximately(depthTargetValue, targetDepth);
+
+        if (depthTargetTimer <= 0f || changed)
+        {
+            depthTargetTimer = settings.depthTargetInterval;
+            depthTargetValue = targetDepth;
+            if (!nestField.FindCellNearDepth(position, targetDepth, settings.depthSearchRadius,
+                out depthTargetX, out depthTargetY))
+            {
+                depthTargetX = -1;
+            }
+        }
+
+        if (depthTargetX < 0) return false;
+
+        SteerTowardCell(depthTargetX, depthTargetY, tickTime);
         return true;
     }
 
@@ -1439,6 +1488,9 @@ public class Ant : MonoBehaviour
         }
 
         float preferred = broodSettings.PreferredDepth(carriedBrood);
+        if (SteerTowardDepth(tickTime, preferred)) return;
+
+        // 近くに手がかりがなければ、従来どおり勾配で寄る
         bool deeper = nestField.SampleDepth01(position) < preferred;
         SteerAlongDepth(tickTime, deeper, settings.turnGain);
     }
