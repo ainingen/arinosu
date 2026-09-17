@@ -162,8 +162,20 @@ public class AntSettings : ScriptableObject
     public float ageDrift = 0.01f;
 
     [Header("掘削：掘る場所（行動モデル.md 12-3）")]
-    [Tooltip("どこでも掘る基礎の確率（知覚tickごと）")]
-    [Range(0f, 1f)] public float digBase = 0.02f;
+    [Tooltip("どこでも掘る基礎の確率（知覚tickごと）。段階5d-7 で 0 にした（当てずっぽうに掘らない）")]
+    [Range(0f, 1f)] public float digBase = 0f;
+    [Tooltip("縦穴の目標の深さ（cm）の下地")]
+    public float shaftBaseDepth = 6f;
+    [Tooltip("アリ1匹あたり、縦穴の目標がこれだけ深くなる（cm）")]
+    public float shaftDepthPerAnt = 0.1f;
+    [Tooltip("働きアリの社会胃の平均がこれを下回ったら掘るのをやめる（飢えているときは採餌へ）")]
+    [Range(0f, 1f)] public float digMinCrop = 0.4f;
+    [Tooltip("1匹あたりこれだけの空洞がないうちは、飢えていても掘る（住む場所が先）")]
+    public float digEmergencyCells = 3f;
+    [Tooltip("縦穴の幅（マス）")]
+    public int shaftWidth = 2;
+    [Tooltip("縦穴の掘る候補にする、最深からの範囲（マス）")]
+    public int shaftTipRange = 3;
     [Tooltip("掘削跡の匂いが掘る確率を上げる強さ")]
     public float digMarkerGain = 0.08f;
     [Tooltip("まわりの混み具合が掘る確率を上げる強さ。段階5cで 0 にし、下の2項に置き換えた")]
@@ -209,10 +221,12 @@ public class AntSettings : ScriptableObject
     public float depthTargetInterval = 1f;
 
     [Header("休む場所（行動モデル.md 13-15）")]
-    [Tooltip("外へ出慣れた個体（θ[Explore]が低い）が休む深さ。0＝入口、1＝いちばん奥")]
-    [Range(0f, 1f)] public float restDepthLow = 0.2f;
-    [Tooltip("内勤寄りの個体（θ[Explore]が高い）が休む深さ")]
-    [Range(0f, 1f)] public float restDepthHigh = 0.8f;
+    [Tooltip("外へ出慣れた個体（θ[Explore]が低い）が休む深さ（地表から何cm下か）")]
+    public float restDepthLowCm = 3f;
+    [Tooltip("内勤寄りの個体（θ[Explore]が高い）が休む深さ（cm）")]
+    public float restDepthHighCm = 10f;
+    [Tooltip("休む場所を「その深さ」と見なす幅（cm）")]
+    public float restDepthTolerance = 2f;
     [Tooltip("まわりの混み具合を数える範囲（cm）")]
     public float digCrowdRadius = 1.5f;
     [Tooltip("この匹数で混み具合が最大（1.0）になる")]
@@ -230,6 +244,36 @@ public class AntSettings : ScriptableObject
     public float digMax = 10f;
     [Tooltip("掘ったマス1つに置く量")]
     public float depositDig = 3f;
+
+    [Header("掘削欲求の場（行動モデル.md 12-2）")]
+    [Tooltip("掘削欲求が半分になるまでの時間（秒）。置き直さなければすぐ消える")]
+    public float digDesireHalfLife = 5f;
+    [Tooltip("1マスに乗る掘削欲求の上限")]
+    public float digDesireMax = 2f;
+    [Tooltip("掘削欲求がまわりの空洞へにじむ割合。触角で比べるには、土から少し漏れ出す必要がある")]
+    [Range(0f, 1f)] public float digDesireDiffusion = 0.2f;
+    [Tooltip("同時に有効にする掘削ポイントの数（縦穴1つ＋部屋の注文）")]
+    public int maxDigSites = 4;
+    [Tooltip("縦穴：真下の土に置く欲求")]
+    public float desireShaftDown = 1f;
+    [Tooltip("縦穴：斜め下の土に置く欲求（石を回り込むため）")]
+    public float desireShaftDiagonal = 0.6f;
+    [Tooltip("部屋：長方形の中の土に置く欲求")]
+    public float desireRoomSide = 1f;
+    [Tooltip("部屋：上下の土に置く欲求。部屋を長方形にしたので使っていない")]
+    public float desireRoomVertical = 0f;
+    [Tooltip("部屋の高さ（マス）。幅は「必要な広さ ÷ 高さ」で決まる")]
+    public int roomHeightCells = 4;
+    [Tooltip("硬い土ほど掘るのに時間がかかる（時間 ＝ digSeconds ×（1＋硬さ×これ））")]
+    public float hardnessDigFactor = 2f;
+    [Tooltip("掘りたい土から空洞を1マスたどるごとに、導きの欲求が何倍に薄まるか")]
+    [Range(0.5f, 0.99f)] public float desireGuideFalloff = 0.9f;
+    [Tooltip("部屋の注文より、縦穴をどれだけ深くまで伸ばすか（cm）。壁がないと部屋は掘れない")]
+    public float shaftRoomMargin = 1f;
+    [Tooltip("「必要なもの」の一覧を見直す間隔（ゲーム内秒）")]
+    public float roomNeedInterval = 5f;
+    [Tooltip("コロニーが「必要なもの」を抱えているときの掘る刺激。一覧が空になれば消える")]
+    [Range(0f, 1f)] public float digNeedStimulus = 0.5f;
 
     [Header("掘削：土の運び出しと塚（行動モデル.md 12-5）")]
     [Tooltip("入口からこれだけ離れてから土を置く（cm）")]

@@ -42,6 +42,14 @@ public class SoilGrid : MonoBehaviour
     [SerializeField] private int stoneMinRadius = 1;
     [SerializeField] private int stoneMaxRadius = 3;
 
+    [Header("土の硬さ（行動モデル.md 12-3）")]
+    [Tooltip("硬さのムラの細かさ。小さいほど大きなまだらになる")]
+    [SerializeField] private float hardnessNoiseScale = 0.05f;
+    [Tooltip("硬さの下限（0＝やわらかい）")]
+    [SerializeField] private float hardnessMin = 0f;
+    [Tooltip("硬さの上限（1＝掘れない）")]
+    [SerializeField] private float hardnessMax = 0.8f;
+
     [Header("最初の巣穴")]
     [Tooltip("入口の X 位置（マス）。負の値なら中央")]
     [SerializeField] private int nestEntranceX = -1;
@@ -84,9 +92,44 @@ public class SoilGrid : MonoBehaviour
     /// </summary>
     public int Version => version;
 
+    /// <summary>マスごとの土の硬さ（0〜1）。石は 1。掘る時間と部屋の広さに効く</summary>
+    private float[] hardness;
+
+    /// <summary>その土の硬さ（0〜1）。石は 1、空洞と空気は 0。</summary>
+    public float Hardness(int x, int y)
+    {
+        EnsureGenerated();
+        if (!IsInside(x, y)) return 1f;
+        if (GetCell(x, y) == CellType.Stone) return 1f;
+        if (!IsSolid(x, y)) return 0f;
+        return hardness != null ? hardness[y * width + x] : 0f;
+    }
+
+    /// <summary>硬さのムラを作る。地形を作り直したときだけ呼ぶ。</summary>
+    private void GenerateHardness()
+    {
+        if (hardness == null || hardness.Length != width * height) hardness = new float[width * height];
+
+        float offset = randomSeed * 0.137f;
+        for (int y = 0; y < height; y++)
+        {
+            int row = y * width;
+            for (int x = 0; x < width; x++)
+            {
+                float n = Mathf.PerlinNoise(
+                    (x + offset) * hardnessNoiseScale,
+                    (y + offset) * hardnessNoiseScale);
+                hardness[row + x] = Mathf.Lerp(hardnessMin, hardnessMax, n);
+            }
+        }
+    }
+
     /// <summary>列ごとの「土のいちばん上」の行。地形が変わったときだけ数え直す</summary>
     private int[] surfaceTops;
+    private int[] rawSurfaceTops;
     private int surfaceTopsVersion = -1;
+    /// <summary>地表をならすときに見る左右の列数（縦穴の幅ぶん）</summary>
+    private const int SurfaceSmoothRange = 3;
 
     /// <summary>
     /// その列の地表（土のいちばん上）の行。土がなければ -1。
@@ -112,17 +155,32 @@ public class SoilGrid : MonoBehaviour
     private void RefreshSurfaceTops()
     {
         if (surfaceTops == null || surfaceTops.Length != width) surfaceTops = new int[width];
+        if (rawSurfaceTops == null || rawSurfaceTops.Length != width) rawSurfaceTops = new int[width];
         surfaceTopsVersion = version;
 
         for (int x = 0; x < width; x++)
         {
-            surfaceTops[x] = -1;
+            rawSurfaceTops[x] = -1;
             for (int y = height - 1; y >= 0; y--)
             {
                 if (!IsSolid(x, y)) continue;
-                surfaceTops[x] = y;
+                rawSurfaceTops[x] = y;
                 break;
             }
+        }
+
+        // 縦穴の列は「土のいちばん上」が穴の底になってしまうので、
+        // 左右の列のうちいちばん高いものを地表とみなす（穴の幅ぶんだけ見る）
+        for (int x = 0; x < width; x++)
+        {
+            int top = rawSurfaceTops[x];
+            for (int dx = -SurfaceSmoothRange; dx <= SurfaceSmoothRange; dx++)
+            {
+                int nx = x + dx;
+                if (nx < 0 || nx >= width) continue;
+                if (rawSurfaceTops[nx] > top) top = rawSurfaceTops[nx];
+            }
+            surfaceTops[x] = top;
         }
     }
     private int version;
@@ -169,6 +227,7 @@ public class SoilGrid : MonoBehaviour
             FillCircle(cx, cy, r, CellType.Stone, CellType.Soil);
         }
 
+        GenerateHardness();
         CarveStartingNest();
 
         dirtyCells.Clear();

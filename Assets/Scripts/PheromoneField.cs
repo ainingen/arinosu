@@ -15,6 +15,11 @@ public enum PheromoneLayer
     LarvaHunger = 3,
     /// <summary>子どもの匂い（行動モデル.md 13-3）。子どもが置かれているマスから出る</summary>
     Brood = 4,
+    /// <summary>
+    /// 掘削欲求（行動モデル.md 12-2）。コロニーの「必要なもの」から作られ、**土の上に乗る**。
+    /// アリはこれを触角で比べて、濃いほうの土を掘る。
+    /// </summary>
+    DigDesire = 5,
 }
 
 /// <summary>
@@ -40,6 +45,8 @@ public class PheromoneField : MonoBehaviour
         public float halfLife;
         public float diffusion;
         public float max;
+        /// <summary>土や石の上にも乗るか（掘削欲求だけ true）</summary>
+        public bool allowSolid;
 
         /// <summary>濃度が 0 でないマスを囲む四角。ここだけ計算すれば済む。</summary>
         public int minX, minY, maxX, maxY;
@@ -81,12 +88,18 @@ public class PheromoneField : MonoBehaviour
         height = grid.Height;
         int count = width * height;
 
-        layers = new Layer[5];
+        layers = new Layer[6];
         layers[(int)PheromoneLayer.Trail] = new Layer { values = new float[count], buffer = new float[count] };
         layers[(int)PheromoneLayer.Alarm] = new Layer { values = new float[count], buffer = new float[count] };
         layers[(int)PheromoneLayer.Dig] = new Layer { values = new float[count], buffer = new float[count] };
         layers[(int)PheromoneLayer.LarvaHunger] = new Layer { values = new float[count], buffer = new float[count] };
         layers[(int)PheromoneLayer.Brood] = new Layer { values = new float[count], buffer = new float[count] };
+        layers[(int)PheromoneLayer.DigDesire] = new Layer
+        {
+            values = new float[count],
+            buffer = new float[count],
+            allowSolid = true,
+        };
         passable = new bool[count];
         ApplySettings();
         RefreshPassable();
@@ -120,6 +133,14 @@ public class PheromoneField : MonoBehaviour
         broodLayer.halfLife = settings.broodHalfLife;
         broodLayer.diffusion = settings.broodDiffusion;
         broodLayer.max = settings.broodMax;
+
+        var desire = layers[(int)PheromoneLayer.DigDesire];
+        desire.halfLife = settings.digDesireHalfLife;
+        // 広げない。コロニーが毎tick置き直して形を保つ（12-2）。
+        // 空洞にいるアリの触角へ届かせるのは拡散ではなく、
+        // コロニーが空洞をたどって置く「導き」のほう（Colony.SpreadDesireGuide）
+        desire.diffusion = 0f;
+        desire.max = settings.digDesireMax;
     }
 
     /// <summary>通れるマスの控えを作り直し、固体になったマスの濃度を消す。</summary>
@@ -136,8 +157,12 @@ public class PheromoneField : MonoBehaviour
                 bool canPass = grid.IsPassable(x, y);
                 passable[i] = canPass;
                 if (canPass) continue;
-                // 土や石になったマスには匂いを残さない
-                for (int l = 0; l < layers.Length; l++) layers[l].values[i] = 0f;
+                // 土や石になったマスには匂いを残さない（掘削欲求だけは土の上に乗る）
+                for (int l = 0; l < layers.Length; l++)
+                {
+                    if (layers[l].allowSolid) continue;
+                    layers[l].values[i] = 0f;
+                }
             }
         }
     }
@@ -275,10 +300,41 @@ public class PheromoneField : MonoBehaviour
         if (layers == null || amount <= 0f) return;
         if (!grid.IsInside(x, y)) return;
         int i = y * width + x;
-        if (!passable[i]) return;   // 土や石には乗らない
-
         Layer layer = layers[(int)layerType];
+        if (!passable[i] && !layer.allowSolid) return;   // 土や石には乗らない
+
         layer.values[i] = Mathf.Min(layer.values[i] + amount, layer.max);
+
+        if (layer.isEmpty)
+        {
+            layer.isEmpty = false;
+            layer.minX = layer.maxX = x;
+            layer.minY = layer.maxY = y;
+            return;
+        }
+        if (x < layer.minX) layer.minX = x;
+        if (x > layer.maxX) layer.maxX = x;
+        if (y < layer.minY) layer.minY = y;
+        if (y > layer.maxY) layer.maxY = y;
+    }
+
+    /// <summary>
+    /// その値まで引き上げる（下げはしない）。掘削欲求のように
+    /// 「毎tick置き直して形を保つ」場に使う。加算だとすぐ上限に張り付いて
+    /// 勾配が消えてしまうので、置き直す場はこちらを使う（行動モデル.md 12-2）。
+    /// </summary>
+    public void SetAtLeast(int x, int y, PheromoneLayer layerType, float value)
+    {
+        EnsureBuilt();
+        if (layers == null || value <= 0f) return;
+        if (!grid.IsInside(x, y)) return;
+        int i = y * width + x;
+        Layer layer = layers[(int)layerType];
+        if (!passable[i] && !layer.allowSolid) return;
+
+        float capped = Mathf.Min(value, layer.max);
+        if (capped <= layer.values[i]) return;
+        layer.values[i] = capped;
 
         if (layer.isEmpty)
         {
@@ -307,8 +363,9 @@ public class PheromoneField : MonoBehaviour
     {
         if (layers == null || !grid.IsInside(x, y)) return 0f;
         int i = y * width + x;
-        if (!passable[i]) return 0f;
-        return layers[(int)layerType].values[i];
+        Layer layer = layers[(int)layerType];
+        if (!passable[i] && !layer.allowSolid) return 0f;
+        return layer.values[i];
     }
 
     /// <summary>層の中身をそのまま渡す（デバッグ表示用。書き換えないこと）。</summary>

@@ -55,9 +55,9 @@ MonoBehaviour:
   carryGiveUpSeconds: 30
   broodSpaceWeight: 0.5
   newAdultCrop: 0.5
-  initialEggs: 12
-  initialLarvae: 10
-  initialPupae: 8
+  initialEggs: 6
+  initialLarvae: 5
+  initialPupae: 4
   workerLifespanDays: 180
   lifespanVariation: 0.2
   preferredDepthEgg: 12

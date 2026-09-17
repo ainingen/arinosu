@@ -262,9 +262,9 @@ MonoBehaviour:
   stoneMinRadius: 1
   stoneMaxRadius: 3
   nestEntranceX: -1
-  nestTunnelWidth: 3
-  nestTunnelDepth: 25
-  nestChamberRadius: 5
+  nestTunnelWidth: 2
+  nestTunnelDepth: 20
+  nestChamberRadius: 2
 --- !u!212 &175284911
 SpriteRenderer:
   serializedVersion: 2
@@ -772,6 +772,7 @@ MonoBehaviour:
   nestField: {fileID: 175284913}
   pheromones: {fileID: 175284914}
   grid: {fileID: 175284910}
+  broodField: {fileID: 0}
   neighborRebuildInterval: 0.25
 --- !u!114 &750776818
 MonoBehaviour:
@@ -790,6 +791,8 @@ MonoBehaviour:
   clock: {fileID: 750776811}
   antSpawner: {fileID: 1228395041}
   colony: {fileID: 750776817}
+  pheromones: {fileID: 0}
+  items: []
 --- !u!1 &946259056
 GameObject:
   m_ObjectHideFlags: 0
@@ -1177,6 +1180,7 @@ MonoBehaviour:
   sortingOrder: -3
   scatter: 0.25
   larvaMinScale: 0.3
+  mandibleOffset: 0.3
   refreshInterval: 0.2
 --- !u!4 &1199264803
 Transform:
@@ -1245,7 +1249,7 @@ MonoBehaviour:
   broodSettings: {fileID: 11400000, guid: 3b0288f2326ea4642b57f9c47e352c18, type: 2}
   broodField: {fileID: 750776818}
   antParent: {fileID: 0}
-  workerCount: 50
+  workerCount: 25
   minNestValue: 0.85
   allowDebugSpawnKey: 1
   debugSpawnBatch: 50

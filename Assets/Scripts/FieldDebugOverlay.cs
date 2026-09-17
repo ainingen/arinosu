@@ -16,6 +16,8 @@ public class FieldDebugOverlay : MonoBehaviour
         Nest,
         /// <summary>掘削跡の匂い（段階4）</summary>
         Dig,
+        /// <summary>掘削欲求（段階5d-8）。土の上に乗る</summary>
+        DigDesire,
     }
 
     [SerializeField] private SoilGrid grid;
@@ -26,6 +28,8 @@ public class FieldDebugOverlay : MonoBehaviour
 
     [Header("色")]
     [SerializeField] private Color trailColor = new Color(0.3f, 1f, 0.4f, 1f);
+    [Tooltip("掘削欲求の色（Shift＋9）")]
+    [SerializeField] private Color desireColor = new Color(1f, 0.35f, 0.1f, 1f);
     [SerializeField] private Color nestColor = new Color(0.4f, 0.7f, 1f, 1f);
     [Tooltip("掘削跡の匂いの色（Shift+8）")]
     [SerializeField] private Color digColor = new Color(1f, 0.55f, 0.2f, 1f);
@@ -162,6 +166,13 @@ public class FieldDebugOverlay : MonoBehaviour
             refreshTimer = 0f;
             ApplyVisibility();
         }
+        // Shift＋9：掘削欲求
+        if (DebugKeys.WasPressed(9))
+        {
+            mode = mode == OverlayMode.DigDesire ? OverlayMode.None : OverlayMode.DigDesire;
+            refreshTimer = 0f;
+            ApplyVisibility();
+        }
     }
 
     /// <summary>重ねる層を外から切り替える（F4 の塗りモードが道しるべを出すのに使う）。</summary>
@@ -209,6 +220,13 @@ public class FieldDebugOverlay : MonoBehaviour
             values = pheromones.GetValues(PheromoneLayer.Dig);
             max = Mathf.Max(0.0001f, pheromones.GetMax(PheromoneLayer.Dig));
             color = digColor;
+        }
+        else if (mode == OverlayMode.DigDesire)
+        {
+            if (pheromones == null) return;
+            values = pheromones.GetValues(PheromoneLayer.DigDesire);
+            max = Mathf.Max(0.0001f, pheromones.GetMax(PheromoneLayer.DigDesire));
+            color = desireColor;
         }
         else
         {

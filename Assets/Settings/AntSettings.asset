@@ -79,7 +79,10 @@ MonoBehaviour:
   thetaNurseYoung: 0.1
   thetaNurseOld: 0.9
   ageDrift: 0.01
-  digBase: 0.002
+  digBase: 0
+  shaftBaseDepth: 6
+  shaftDepthPerAnt: 0.1
+  digMinCrop: 0.4
   digMarkerGain: 0.3
   digCrowdGain: 0
   digBroodGain: 0.3

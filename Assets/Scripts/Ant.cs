@@ -610,17 +610,20 @@ public class Ant : MonoBehaviour
     // ---- 掘削（行動モデル.md 12章）----
 
     /// <summary>
-    /// 掘る仕事。目的地は持たない。
-    /// いつもどおり壁沿いに歩き、隣り合った土のマスを確率で掘る。
+    /// 掘る仕事（行動モデル.md 12-2）。
+    ///
+    /// アリは設計図を持たない。**掘削欲求の場**を触角2点で比べて濃いほうへ曲がり、
+    /// 隣の土のうち欲求がいちばん濃いマスを掘るだけ。
+    /// 場はコロニーが「必要なもの」から作る（縦穴が浅い／この深さに部屋がほしい）。
+    /// 欲求が 0 なら掘らない。石には欲求が乗らないので、自然に避ける。
     /// </summary>
     private void DigStep(float tickTime, bool inside)
     {
         timeOutside = 0f;
 
-        // 掘っている最中は動かない（進み具合は Update 側で数える）
+        // 掘っている最中は動かない
         if (digTimer > 0f) return;
 
-        // 巣の外に出てしまっていたら、まず巣へ戻る
         if (!inside)
         {
             SteerAlongNest(tickTime, true, settings.turnGain);
@@ -628,7 +631,6 @@ public class Ant : MonoBehaviour
             return;
         }
 
-        // 掘れる場所が見つからないまま歩き続けたら、いったん巣の仕事に戻る
         digSearchTimer += tickTime;
         if (digSearchTimer > settings.digGiveUpSeconds)
         {
@@ -637,123 +639,78 @@ public class Ant : MonoBehaviour
             return;
         }
 
-        // 壁沿いを歩く（移動層がすでに面に沿わせるので、ここでは向きを揺らすだけ）
+        if (grid == null || pheromones == null) return;
+
+        // 隣に掘りたい土があれば掘る
+        int cellX, cellY;
+        if (FindDesiredSoil(out cellX, out cellY))
+        {
+            BeginDig(cellX, cellY);
+            return;
+        }
+
+        // なければ、欲求の濃いほうへ歩く（道しるべと同じ触角の比べ方）
+        SteerAlongDigDesire(tickTime);
         AddWanderNoise(tickTime, settings.wanderSigma);
+    }
+
+    /// <summary>掘削欲求の濃い側へ曲がる（12-2）。</summary>
+    private void SteerAlongDigDesire(float tickTime)
+    {
+        Vector2 leftPoint, rightPoint;
+        GetSensorPoints(out leftPoint, out rightPoint);
+        SteerByGradient(
+            pheromones.Sample(leftPoint, PheromoneLayer.DigDesire),
+            pheromones.Sample(rightPoint, PheromoneLayer.DigDesire),
+            true, settings.turnGain, tickTime);
+    }
+
+    /// <summary>
+    /// 隣り合う土のうち、掘削欲求がいちばん濃いマス（12-2）。
+    /// 欲求が乗っていない土は掘らない。
+    /// </summary>
+    private bool FindDesiredSoil(out int cellX, out int cellY)
+    {
+        cellX = 0;
+        cellY = 0;
 
         int x, y;
-        if (!grid.WorldToCell(position, out x, out y)) return;
+        if (!grid.WorldToCell(position, out x, out y)) return false;
 
-        // 掘る候補を決める（行動モデル.md 12-3）
-        int candidateX, candidateY;
-        float marker;
-        if (!FindDigTarget(x, y, out candidateX, out candidateY, out marker)) return;
+        float best = 0f;
+        bool found = false;
 
-        float markerMax = pheromones != null ? Mathf.Max(0.0001f, pheromones.GetMax(PheromoneLayer.Dig)) : 1f;
-        int neighbors = colony != null ? colony.CountNestmatesNear(this, settings.digCrowdRadius) : 0;
-        float crowd = Mathf.Clamp01(neighbors / Mathf.Max(0.0001f, settings.digCrowdFull));
-
-        // 地表の近くは掘らない（掘り抜けを防ぐ。行動モデル.md 13-15）
-        if (TooCloseToSurface(candidateX, candidateY)) return;
-
-        // 子どもの塊・女王・休んでいるアリのまわりは掘り広げられ、膨らみ（部屋）になる（13-15）
-        float room = RoomTerm(x, y, candidateX, candidateY);
-
-        // トンネルは下へ伸びる。上へは伸びにくい（13-15）
-        float vertical = 1f;
-        if (candidateY < y) vertical = settings.digDownBias;
-        else if (candidateY > y) vertical = settings.digUpFactor;
-
-        // 跡をたどっているときだけ、跡の項が効く。
-        // 跡がないとき（新しいトンネルの起点）は基礎の確率だけで掘る。
-        // 部屋の中では、トンネルを伸ばす力を弱めて横へ広がるようにする
-        float tunnel = settings.digBase + settings.digCrowdGain * crowd;
-        if (marker > 0f)
+        // 斜めも見る。縦穴の真下が石のとき、斜め下の土を掘って回り込むため（12-2）
+        for (int dy = -1; dy <= 1; dy++)
         {
-            float markerTerm = settings.digMarkerGain * (marker / markerMax);
-            if (room > 0f) markerTerm *= settings.roomMarkerDamp;
-            tunnel += markerTerm;
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                if (dx == 0 && dy == 0) continue;
+                int nx = x + dx;
+                int ny = y + dy;
+                if (!grid.IsInside(nx, ny)) continue;
+                if (grid.GetCell(nx, ny) != CellType.Soil) continue;
+
+                float desire = pheromones.GetAt(nx, ny, PheromoneLayer.DigDesire);
+                if (desire <= best) continue;
+
+                best = desire;
+                cellX = nx;
+                cellY = ny;
+                found = true;
+            }
         }
-
-        float probability = tunnel * vertical + room;
-
-        if (Random.value >= probability) return;
-
-        digCellX = candidateX;
-        digCellY = candidateY;
-        digTimer = settings.digSeconds;
+        return found;
     }
 
-    /// <summary>
-    /// その土のマスに隣り合う空洞の、子どもの匂いの最大値（0〜1に正規化）。
-    /// 子どもの塊のそばほど掘られやすくなる（行動モデル.md 13-7）。
-    /// </summary>
-    private float BroodSmellAround(int cellX, int cellY)
+    /// <summary>掘り始める。硬い土ほど時間がかかる（12-3）。</summary>
+    private void BeginDig(int cellX, int cellY)
     {
-        if (pheromones == null || grid == null) return 0f;
+        digCellX = cellX;
+        digCellY = cellY;
 
-        float max = 0f;
-        for (int i = 0; i < 4; i++)
-        {
-            int dx = i == 0 ? 1 : (i == 1 ? -1 : 0);
-            int dy = i == 2 ? 1 : (i == 3 ? -1 : 0);
-            if (!grid.IsPassable(cellX + dx, cellY + dy)) continue;
-            float value = pheromones.GetAt(cellX + dx, cellY + dy, PheromoneLayer.Brood);
-            if (value > max) max = value;
-        }
-
-        float scale = Mathf.Max(0.0001f, pheromones.GetMax(PheromoneLayer.Brood));
-        return Mathf.Clamp01(max / scale);
-    }
-
-    /// <summary>
-    /// 部屋を広げる項（行動モデル.md 13-15）。
-    ///
-    /// 掘るのは**左右の土が基本**。上下は、その場の空洞がまだ低いときだけ弱く許す。
-    /// これで部屋が横長になり、縦の通路とは別物になる。
-    /// 広さの上限は中身に比例させる（子どもが多い部屋ほど広く、女王の部屋は決まった広さ）。
-    /// </summary>
-    private float RoomTerm(int fromX, int fromY, int cellX, int cellY)
-    {
-        if (grid == null) return 0f;
-
-        // 子どもの項は「まわりに塊があるとき」だけ働く。
-        // 匂いは薄く広がるので、匂いだけで判定すると通路まで太ってしまう（13-15）
-        Vector2 here = grid.CellToWorld(cellX, cellY);
-        int broodCount = broodField != null ? broodField.CountWithin(here, settings.roomRadius) : 0;
-        float brood = broodCount >= BroodRoomMin
-            ? settings.digBroodGain * BroodSmellAround(cellX, cellY)
-            : 0f;
-
-        float queen = NearQueen(cellX, cellY) ? settings.digQueenGain : 0f;
-        float rest = settings.digRestGain * RestCrowdAround(cellX, cellY);
-        if (brood <= 0f && queen <= 0f && rest <= 0f) return 0f;
-
-        // 掘る向き：左右が基本。上下は空洞がまだ低いときだけ
-        float direction;
-        if (cellY == fromY)
-        {
-            direction = 1f;
-        }
-        else
-        {
-            if (OpenHeightAt(fromX, fromY) >= settings.roomMaxHeight) return 0f;
-            direction = settings.roomVerticalFactor;
-        }
-
-        // 広さの上限は中身の量で決まる
-        int open = CountOpenAround(cellX, cellY);
-        float room = 0f;
-
-        if (brood > 0f
-            && open <= settings.roomCellsPerBrood * broodCount + settings.roomBaseCells) room += brood;
-        if (queen > 0f && open <= settings.roomQueenCells) room += queen;
-        if (rest > 0f && colony != null)
-        {
-            int resting = colony.CountRestingNear(here, settings.roomRadius);
-            if (open <= settings.roomCellsPerAnt * resting) room += rest;
-        }
-
-        return room * direction;
+        float hardness = grid.Hardness(cellX, cellY);
+        digTimer = settings.digSeconds * (1f + hardness * settings.hardnessDigFactor);
     }
 
     /// <summary>
@@ -803,91 +760,6 @@ public class Ant : MonoBehaviour
         return open;
     }
 
-    /// <summary>その土のマスのそばで休んでいるアリの混み具合（0〜1。行動モデル.md 13-15）。</summary>
-    private float RestCrowdAround(int cellX, int cellY)
-    {
-        if (colony == null || grid == null || settings.digRestGain <= 0f) return 0f;
-        int resting = colony.CountRestingNear(grid.CellToWorld(cellX, cellY), settings.digCrowdRadius);
-        return Mathf.Clamp01(resting / Mathf.Max(0.0001f, settings.digCrowdFull));
-    }
-
-    /// <summary>その土のマスが女王のそばか（行動モデル.md 13-7）。</summary>
-    private bool NearQueen(int cellX, int cellY)
-    {
-        if (colony == null || colony.Queen == null || grid == null) return false;
-        float radius = settings.queenRoomRadius;
-        return (grid.CellToWorld(cellX, cellY) - colony.Queen.Position).sqrMagnitude <= radius * radius;
-    }
-
-    /// <summary>
-    /// 掘る土のマスを決める（行動モデル.md 12-3）。
-    ///
-    /// 自分の隣で掘削跡がいちばん濃い空洞を見つけ、その**反対側**の土を掘る。
-    /// 掘りたての空洞ほど跡が濃いので、直前に掘られた向きへ穴が伸びる。
-    /// 反対側が土でなければ（石・空洞・空気なら）掘らない。
-    ///
-    /// 跡のある空洞が隣にひとつもないときだけ、隣接する土からランダムに選ぶ。
-    /// これが新しいトンネルの起点になる。
-    /// </summary>
-    private bool FindDigTarget(int x, int y, out int targetX, out int targetY, out float marker)
-    {
-        targetX = 0;
-        targetY = 0;
-        marker = 0f;
-
-        // 隣の空洞のうち、跡がいちばん濃いもの（土と石は常に 0 なので自然に除かれる）
-        int markedDX = 0, markedDY = 0;
-        float best = 0f;
-        for (int i = 0; i < 4; i++)
-        {
-            int dx = i == 0 ? 1 : (i == 1 ? -1 : 0);
-            int dy = i == 2 ? 1 : (i == 3 ? -1 : 0);
-            float value = pheromones != null ? pheromones.GetAt(x + dx, y + dy, PheromoneLayer.Dig) : 0f;
-            if (value <= best) continue;
-            best = value;
-            markedDX = dx;
-            markedDY = dy;
-        }
-
-        if (best > 0f)
-        {
-            // 跡のある空洞の反対側を掘る。これで穴が一直線に伸びる
-            int tx = x - markedDX;
-            int ty = y - markedDY;
-            if (!grid.IsInside(tx, ty)) return false;
-            if (grid.GetCell(tx, ty) != CellType.Soil) return false;
-
-            targetX = tx;
-            targetY = ty;
-            marker = best;
-            return true;
-        }
-
-        // 跡がない：隣接する土から1つ選ぶ（新しいトンネルの起点）
-        float weightSum = 0f;
-        bool found = false;
-        for (int i = 0; i < 4; i++)
-        {
-            int dx = i == 0 ? 1 : (i == 1 ? -1 : 0);
-            int dy = i == 2 ? 1 : (i == 3 ? -1 : 0);
-            int nx = x + dx;
-            int ny = y + dy;
-            if (!grid.IsInside(nx, ny)) continue;
-            if (grid.GetCell(nx, ny) != CellType.Soil) continue;
-
-            // 左右の土を選びやすくする（新しい枝が横へ出る。行動モデル.md 13-15）
-            float weight = dy == 0 ? settings.digBaseHorizontalBias : 1f;
-            weightSum += weight;
-
-            // 重みつきで1つを選ぶ
-            if (Random.value * weightSum > weight) continue;
-            targetX = nx;
-            targetY = ny;
-            found = true;
-        }
-        return found;
-    }
-
     /// <summary>掘る時間を進める。掘り終わったらマスを空洞に変える。</summary>
     private void DigProgress(float deltaTime)
     {
@@ -900,13 +772,8 @@ public class Ant : MonoBehaviour
 
         grid.SetCell(digCellX, digCellY, CellType.Cavity);
 
-        // 掘った跡の匂いを、新しくできた空洞1マスだけに置く。
-        // まわりに広げると先端が埋もれて、穴が伸びずに横に広がってしまう
-        if (pheromones != null)
-        {
-            pheromones.DepositAt(digCellX, digCellY, PheromoneLayer.Dig, settings.depositDig);
-        }
-
+        // 掘った跡の匂いは置かない（段階5d-8）。
+        // 掘る向きは掘削欲求の場が決めるので、跡をたどる必要がなくなった
         if (colony != null) colony.ReportDug();
 
         // 掘った土を1粒持って、外へ運び出す（行動モデル.md 12-5）
@@ -1282,7 +1149,8 @@ public class Ant : MonoBehaviour
         }
 
         float t = Mathf.InverseLerp(settings.thetaMin, settings.thetaMax, theta[ThetaExplore]);
-        float target = Mathf.Lerp(settings.restDepthLow, settings.restDepthHigh, t);
+        // 深さは地表からの cm で測る（13-15）。割合ではない
+        float target = Mathf.Lerp(settings.restDepthLowCm, settings.restDepthHighCm, t);
         if (SteerTowardDepth(tickTime, target)) return;
 
         SteerAlongNest(tickTime, true, settings.homingBias);
