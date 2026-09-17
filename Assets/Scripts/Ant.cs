@@ -536,7 +536,7 @@ public class Ant : MonoBehaviour
             }
 
             float bias = broodSettings != null ? broodSettings.queenNestBias : 1f;
-            SteerAlongDepth(tickTime, true, settings.homingBias * bias);
+            SteerAlongNest(tickTime, true, settings.homingBias * bias);
             AddWanderNoise(tickTime, settings.wanderSigma * 0.3f);
             return;
         }
@@ -546,7 +546,7 @@ public class Ant : MonoBehaviour
         // まだいちばん奥にいないなら、奥へ寄っていく（行動モデル.md 13-15）。
         // 巣が掘り広げられて最奥が移っても、女王はゆっくり付いていく
         if (nestField != null
-            && nestField.SampleDepth01(position) < 1f - broodSettings.queenDeepTolerance)
+            && nestField.SampleDepthCm(position) < nestField.MaxCavityDepthCm - broodSettings.queenDeepTolerance)
         {
             queenWalkTimer = broodSettings.queenWanderSeconds;
             return;
@@ -652,21 +652,29 @@ public class Ant : MonoBehaviour
         int neighbors = colony != null ? colony.CountNestmatesNear(this, settings.digCrowdRadius) : 0;
         float crowd = Mathf.Clamp01(neighbors / Mathf.Max(0.0001f, settings.digCrowdFull));
 
+        // 地表の近くは掘らない（掘り抜けを防ぐ。行動モデル.md 13-15）
+        if (TooCloseToSurface(candidateX, candidateY)) return;
+
         // 子どもの塊・女王・休んでいるアリのまわりは掘り広げられ、膨らみ（部屋）になる（13-15）
         float room = RoomTerm(x, y, candidateX, candidateY);
+
+        // トンネルは下へ伸びる。上へは伸びにくい（13-15）
+        float vertical = 1f;
+        if (candidateY < y) vertical = settings.digDownBias;
+        else if (candidateY > y) vertical = settings.digUpFactor;
 
         // 跡をたどっているときだけ、跡の項が効く。
         // 跡がないとき（新しいトンネルの起点）は基礎の確率だけで掘る。
         // 部屋の中では、トンネルを伸ばす力を弱めて横へ広がるようにする
-        float probability = settings.digBase + settings.digCrowdGain * crowd;
+        float tunnel = settings.digBase + settings.digCrowdGain * crowd;
         if (marker > 0f)
         {
             float markerTerm = settings.digMarkerGain * (marker / markerMax);
             if (room > 0f) markerTerm *= settings.roomMarkerDamp;
-            probability += markerTerm;
+            tunnel += markerTerm;
         }
 
-        probability += room;
+        float probability = tunnel * vertical + room;
 
         if (Random.value >= probability) return;
 
@@ -708,7 +716,14 @@ public class Ant : MonoBehaviour
     {
         if (grid == null) return 0f;
 
-        float brood = settings.digBroodGain * BroodSmellAround(cellX, cellY);
+        // 子どもの項は「まわりに塊があるとき」だけ働く。
+        // 匂いは薄く広がるので、匂いだけで判定すると通路まで太ってしまう（13-15）
+        Vector2 here = grid.CellToWorld(cellX, cellY);
+        int broodCount = broodField != null ? broodField.CountWithin(here, settings.roomRadius) : 0;
+        float brood = broodCount >= BroodRoomMin
+            ? settings.digBroodGain * BroodSmellAround(cellX, cellY)
+            : 0f;
+
         float queen = NearQueen(cellX, cellY) ? settings.digQueenGain : 0f;
         float rest = settings.digRestGain * RestCrowdAround(cellX, cellY);
         if (brood <= 0f && queen <= 0f && rest <= 0f) return 0f;
@@ -726,15 +741,11 @@ public class Ant : MonoBehaviour
         }
 
         // 広さの上限は中身の量で決まる
-        Vector2 here = grid.CellToWorld(cellX, cellY);
         int open = CountOpenAround(cellX, cellY);
         float room = 0f;
 
-        if (brood > 0f && broodField != null)
-        {
-            int count = broodField.CountWithin(here, settings.roomRadius);
-            if (open <= settings.roomCellsPerBrood * count + settings.roomBaseCells) room += brood;
-        }
+        if (brood > 0f
+            && open <= settings.roomCellsPerBrood * broodCount + settings.roomBaseCells) room += brood;
         if (queen > 0f && open <= settings.roomQueenCells) room += queen;
         if (rest > 0f && colony != null)
         {
@@ -744,6 +755,20 @@ public class Ant : MonoBehaviour
 
         return room * direction;
     }
+
+    /// <summary>
+    /// 地表に近すぎて掘れない土か（行動モデル.md 13-15）。
+    /// 塚を積めば地表も上がるので、塚の土も同じ扱いになる。
+    /// </summary>
+    private bool TooCloseToSurface(int cellX, int cellY)
+    {
+        if (grid == null) return false;
+        int keep = Mathf.RoundToInt(settings.surfaceKeepDepth / grid.CellSize);
+        return grid.DepthFromSurface(cellX, cellY) < keep;
+    }
+
+    /// <summary>部屋とみなす子どもの数（設定がなければ既定値）。</summary>
+    private int BroodRoomMin => broodSettings != null ? broodSettings.roomBroodMin : 3;
 
     /// <summary>その場所の空洞が縦に何マス続いているか（部屋の高さ）。</summary>
     private int OpenHeightAt(int cellX, int cellY)
@@ -1260,8 +1285,7 @@ public class Ant : MonoBehaviour
         float target = Mathf.Lerp(settings.restDepthLow, settings.restDepthHigh, t);
         if (SteerTowardDepth(tickTime, target)) return;
 
-        bool deeper = nestField.SampleDepth01(position) < target;
-        SteerAlongDepth(tickTime, deeper, settings.homingBias);
+        SteerAlongNest(tickTime, true, settings.homingBias);
     }
 
     // ---- 育児（行動モデル.md 13-4）----
@@ -1448,7 +1472,7 @@ public class Ant : MonoBehaviour
             if (list == null || list.Count == 0) continue;
 
             // そのマスでいちばん居場所の合っていない子どもを見る（行動モデル.md 13-15）
-            float depthHere = nestField != null ? nestField.GetDepth01(cx, cy) : 0f;
+            float depthHere = nestField != null ? nestField.GetDepthCm(cx, cy) : 0f;
             BroodItem candidate = broodField.LeastFitAt(cx, cy, depthHere);
             if (candidate == null) continue;
 
@@ -1508,7 +1532,7 @@ public class Ant : MonoBehaviour
             float p = (fSame / (k + fSame)) * (fSame / (k + fSame));
 
             // 好みの深さでだけ置く。違う段階が混ざっている場所は避ける（13-15）
-            float depthHere = nestField != null ? nestField.GetDepth01(x, y) : 0f;
+            float depthHere = nestField != null ? nestField.GetDepthCm(x, y) : 0f;
             p *= broodSettings.DepthFit(carriedBrood, depthHere);
             p *= 1f - broodSettings.mixPenalty * fOther;
 
@@ -1551,9 +1575,8 @@ public class Ant : MonoBehaviour
         float preferred = broodSettings.PreferredDepth(carriedBrood);
         if (SteerTowardDepth(tickTime, preferred)) return;
 
-        // 近くに手がかりがなければ、従来どおり勾配で寄る
-        bool deeper = nestField.SampleDepth01(position) < preferred;
-        SteerAlongDepth(tickTime, deeper, settings.turnGain);
+        // 近くに手がかりがなければ、巣の奥へ寄っておく
+        SteerAlongNest(tickTime, true, settings.homingBias);
     }
 
     /// <summary>持っている子どもをそのマスへ置き、巣の仕事に戻る。</summary>
@@ -1615,21 +1638,6 @@ public class Ant : MonoBehaviour
         // 1回で満たなくても、いったん巣の仕事に戻って選び直す
         task = AntTask.RestInNest;
         nurseSearchTimer = 0f;
-    }
-
-    /// <summary>
-    /// 巣の深さ（入口からの経路距離の割合）の勾配に沿って曲がる（行動モデル.md 13-15）。
-    ///
-    /// 巣の匂いは深いところで 1.0 に張り付いて差がなくなるが、
-    /// 深さの割合はいちばん奥が常に 1 になるので、どれだけ掘り進んでも向きが分かる。
-    /// </summary>
-    private void SteerAlongDepth(float tickTime, bool deeper, float gain)
-    {
-        if (nestField == null) return;
-        Vector2 leftPoint, rightPoint;
-        GetSensorPoints(out leftPoint, out rightPoint);
-        SteerByGradient(nestField.SampleDepth01(leftPoint), nestField.SampleDepth01(rightPoint),
-            deeper, gain, tickTime);
     }
 
     /// <summary>幼虫の空腹の匂いの濃い側へ曲がる。</summary>

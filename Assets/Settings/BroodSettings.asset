@@ -19,7 +19,7 @@ MonoBehaviour:
   queenWanderSeconds: 2
   queenNestBias: 3
   queenMinNest: 0.9
-  queenDeepTolerance: 0.05
+  queenDeepTolerance: 1
   queenHungerDeposit: 0.05
   layPerDay: 3
   layMinCrop: 0.5
@@ -29,10 +29,10 @@ MonoBehaviour:
   pupaDays: 18
   stageDurationScale: 1
   larvaAlwaysFed: 0
-  larvaFullToEmptyDays: 3
+  larvaFullToEmptyDays: 4
   growthPerCrop: 0.35
   larvaStarveDays: 4
-  feedAmount: 0.2
+  feedAmount: 0.4
   larvaHungerThreshold: 0.2
   nurseMinCrop: 0.02
   deliverHungerMin: 0.05
@@ -60,10 +60,10 @@ MonoBehaviour:
   initialPupae: 8
   workerLifespanDays: 180
   lifespanVariation: 0.2
-  preferredDepthEgg: 0.9
-  preferredDepthLarva: 0.5
-  preferredDepthPupa: 0.2
-  preferredDepthTolerance: 0.15
+  preferredDepthEgg: 12
+  preferredDepthLarva: 8
+  preferredDepthPupa: 4
+  preferredDepthTolerance: 3
   youngLarvaSize: 0.3
   mixPenalty: 0.7
   roomSenseRadius: 2

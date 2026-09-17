@@ -90,6 +90,9 @@ MonoBehaviour:
   roomMaxHeight: 5
   roomMarkerDamp: 0.2
   digBaseHorizontalBias: 2
+  digDownBias: 3
+  digUpFactor: 0.1
+  surfaceKeepDepth: 2
   roomRadius: 1.5
   roomCellsPerBrood: 4
   roomBaseCells: 20
@@ -97,8 +100,8 @@ MonoBehaviour:
   roomCellsPerAnt: 2
   depthSearchRadius: 5
   depthTargetInterval: 1
-  restDepthLow: 0.2
-  restDepthHigh: 0.8
+  restDepthLow: 3
+  restDepthHigh: 10
   digCrowdRadius: 1.5
   digCrowdFull: 5
   digSeconds: 3
@@ -119,7 +122,7 @@ MonoBehaviour:
   larvaHungerDiffusion: 0.05
   larvaHungerMax: 10
   foodSpawnMode: 0
-  foodPerDay: 5
+  foodPerDay: 6
   foodIntervalJitter: 0.5
   foodAmountMin: 10
   foodAmountMax: 30

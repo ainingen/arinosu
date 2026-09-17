@@ -83,6 +83,48 @@ public class SoilGrid : MonoBehaviour
     /// 巣の匂いの作り直しなどは、自分が見た版と比べて判断する。
     /// </summary>
     public int Version => version;
+
+    /// <summary>列ごとの「土のいちばん上」の行。地形が変わったときだけ数え直す</summary>
+    private int[] surfaceTops;
+    private int surfaceTopsVersion = -1;
+
+    /// <summary>
+    /// その列の地表（土のいちばん上）の行。土がなければ -1。
+    /// 「地表からの深さ」と「掘り抜かない厚み」に使う（行動モデル.md 13-15）。
+    /// 塚を積めばその分だけ上がる。
+    /// </summary>
+    public int SurfaceTop(int x)
+    {
+        EnsureGenerated();
+        if (x < 0 || x >= width) return -1;
+
+        if (surfaceTops == null || surfaceTopsVersion != version) RefreshSurfaceTops();
+        return surfaceTops[x];
+    }
+
+    /// <summary>その場所が地表から何マス下か（土でも空洞でも測れる）。</summary>
+    public int DepthFromSurface(int x, int y)
+    {
+        int top = SurfaceTop(x);
+        return top < 0 ? 0 : top - y;
+    }
+
+    private void RefreshSurfaceTops()
+    {
+        if (surfaceTops == null || surfaceTops.Length != width) surfaceTops = new int[width];
+        surfaceTopsVersion = version;
+
+        for (int x = 0; x < width; x++)
+        {
+            surfaceTops[x] = -1;
+            for (int y = height - 1; y >= 0; y--)
+            {
+                if (!IsSolid(x, y)) continue;
+                surfaceTops[x] = y;
+                break;
+            }
+        }
+    }
     private int version;
 
     private void Awake()

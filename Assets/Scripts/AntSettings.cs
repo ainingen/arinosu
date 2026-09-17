@@ -184,6 +184,12 @@ public class AntSettings : ScriptableObject
     [Range(0f, 1f)] public float roomMarkerDamp = 0.2f;
     [Tooltip("新しいトンネルの起点を選ぶとき、左右の土をこの倍だけ選びやすくする")]
     public float digBaseHorizontalBias = 2f;
+    [Tooltip("トンネルの項：下の土をこの倍だけ掘りやすくする（巣は下へ伸びる）")]
+    public float digDownBias = 3f;
+    [Tooltip("トンネルの項：上の土をこの倍に弱める（地表へ向かわない）")]
+    [Range(0f, 1f)] public float digUpFactor = 0.1f;
+    [Tooltip("地表からこの深さ（cm）までの土は掘らない。掘り抜けを防ぐ")]
+    public float surfaceKeepDepth = 2f;
 
     [Tooltip("部屋の大きさを見る範囲（cm）")]
     public float roomRadius = 1.5f;

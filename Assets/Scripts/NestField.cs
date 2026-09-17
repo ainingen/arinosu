@@ -37,37 +37,33 @@ public class NestField : MonoBehaviour
     public float MaxCavityValue { get; private set; }
     /// <summary>入口からいちばん遠い空洞までの経路距離（マス）。深さの基準が効いているかの確認に使う。</summary>
     public int MaxCavityDistance { get; private set; }
-    /// <summary>いちばん奥のマス。女王がここを目指す（行動モデル.md 13-15）。</summary>
+    /// <summary>いちばん深い空洞のマス。女王がここを目指す（行動モデル.md 13-15）。</summary>
     public int DeepestCellX { get; private set; }
     public int DeepestCellY { get; private set; }
+    /// <summary>そのマスの地表からの深さ（cm）。</summary>
+    public float MaxCavityDepthCm { get; private set; }
     /// <summary>いちばん奥のマスが見つかっているか。</summary>
     public bool HasDeepestCell => DeepestCellX >= 0;
 
     /// <summary>
-    /// そのマスの深さ（0＝入口、1＝いちばん奥）。行動モデル.md 13-15。
+    /// そのマスの深さ（地表から何cm下か）。行動モデル.md 13-15。
     ///
-    /// 巣の匂いは nestDeepDistance より深いとすべて 1.0 になって差がなくなるので、
-    /// 深さの好みと休む場所には「入口からの経路距離の割合」を使う。
-    /// 巣がどれだけ深くなっても、いちばん奥が 1 になるように伸び縮みする。
+    /// 「入口からの経路距離」ではなく地表からの深さで測る。
+    /// 横に長い通路を掘っても深くはならないので、上下の並びがそのまま表せる。
     /// </summary>
-    public float GetDepth01(int x, int y)
+    public float GetDepthCm(int x, int y)
     {
-        EnsureBuilt();
-        if (grid == null || values == null) return 0f;
-        if (!grid.IsInside(x, y)) return 0f;
-        if (grid.GetCell(x, y) != CellType.Cavity) return 0f;
-
-        int max = Mathf.Max(1, MaxCavityDistance);
-        return Mathf.Clamp01((float)distances[y * width + x] / max);
+        if (grid == null) return 0f;
+        return grid.DepthFromSurface(x, y) * grid.CellSize;
     }
 
-    /// <summary>世界の座標での深さ（0〜1）。</summary>
-    public float SampleDepth01(Vector2 worldPosition)
+    /// <summary>世界の座標での深さ（cm）。</summary>
+    public float SampleDepthCm(Vector2 worldPosition)
     {
         if (grid == null) return 0f;
         int x, y;
         if (!grid.WorldToCell(worldPosition, out x, out y)) return 0f;
-        return GetDepth01(x, y);
+        return GetDepthCm(x, y);
     }
 
     /// <summary>
@@ -77,7 +73,7 @@ public class NestField : MonoBehaviour
     /// 「近くで、いちばん目標に近いマス」を目印にして、そこへ向かって歩くほうが確実に届く。
     /// 同じくらい合うマスが複数あれば、近いほうを選ぶ。
     /// </summary>
-    public bool FindCellNearDepth(Vector2 from, float targetDepth, float radius,
+    public bool FindCellNearDepth(Vector2 from, float targetDepthCm, float radius,
         out int bestX, out int bestY)
     {
         bestX = -1;
@@ -89,7 +85,6 @@ public class NestField : MonoBehaviour
         if (!grid.WorldToCell(from, out cx, out cy)) return false;
 
         int r = Mathf.CeilToInt(radius / grid.CellSize);
-        int maxDistance = Mathf.Max(1, MaxCavityDistance);
         float bestScore = float.MaxValue;
 
         for (int dy = -r; dy <= r; dy++)
@@ -103,8 +98,8 @@ public class NestField : MonoBehaviour
                 int y = cy + dy;
                 if (!grid.IsInside(x, y) || grid.GetCell(x, y) != CellType.Cavity) continue;
 
-                float depth = Mathf.Clamp01((float)distances[y * width + x] / maxDistance);
-                float score = Mathf.Abs(depth - targetDepth) * 100f + squared * 0.001f;
+                // 好みの深さに近いほど良い。同じくらいなら近いほうを選ぶ
+                float score = Mathf.Abs(GetDepthCm(x, y) - targetDepthCm) + squared * 0.0001f;
                 if (score >= bestScore) continue;
 
                 bestScore = score;
@@ -181,6 +176,7 @@ public class NestField : MonoBehaviour
         MaxCavityDistance = 0;
         DeepestCellX = -1;
         DeepestCellY = -1;
+        MaxCavityDepthCm = 0f;
 
         float entranceValue = settings != null ? settings.nestEntranceValue : 0.8f;
         float deepValue = settings != null ? settings.nestDeepValue : 1f;
@@ -229,9 +225,13 @@ public class NestField : MonoBehaviour
             // 経路距離が nestDeepDistance を超えると濃さは 1.0 で頭打ちになるので、
             // 「奥ほど濃い」が効かなくなっていないかを、この2つで見る
             if (values[index] > MaxCavityValue) MaxCavityValue = values[index];
-            if (distance > MaxCavityDistance || DeepestCellX < 0)
+            if (distance > MaxCavityDistance) MaxCavityDistance = distance;
+
+            // いちばん「深い」空洞を控える。女王がここを目指す（13-15）
+            float depth = grid.DepthFromSurface(x, y) * grid.CellSize;
+            if (depth > MaxCavityDepthCm || DeepestCellX < 0)
             {
-                MaxCavityDistance = distance;
+                MaxCavityDepthCm = depth;
                 DeepestCellX = x;
                 DeepestCellY = y;
             }

@@ -120,14 +120,14 @@ public class BroodSettings : ScriptableObject
     [Range(0f, 1f)] public float lifespanVariation = 0.2f;
 
     [Header("好む深さ（行動モデル.md 13-15）")]
-    [Tooltip("深さは「入口からの経路距離の割合」で測る。0＝入口、1＝いちばん奥")]
-    [Range(0f, 1f)] public float preferredDepthEgg = 0.9f;
-    [Tooltip("育った幼虫が好む深さ")]
-    [Range(0f, 1f)] public float preferredDepthLarva = 0.5f;
-    [Tooltip("繭が好む深さ（いちばん入口寄り）")]
-    [Range(0f, 1f)] public float preferredDepthPupa = 0.2f;
-    [Tooltip("好みからこれだけ外れると、居場所として合わないとみなす")]
-    public float preferredDepthTolerance = 0.15f;
+    [Tooltip("深さは「地表から何cm下か」で測る")]
+    public float preferredDepthEgg = 12f;
+    [Tooltip("育った幼虫が好む深さ（cm）")]
+    public float preferredDepthLarva = 8f;
+    [Tooltip("繭が好む深さ（cm。いちばん浅い）")]
+    public float preferredDepthPupa = 4f;
+    [Tooltip("好みからこれだけ（cm）外れると、居場所として合わないとみなす")]
+    public float preferredDepthTolerance = 3f;
     [Tooltip("これ未満の幼虫は、卵と同じ深さを好む")]
     [Range(0f, 1f)] public float youngLarvaSize = 0.3f;
     [Tooltip("違う段階が混ざっている場所ほど置きにくくする強さ")]
@@ -146,8 +146,8 @@ public class BroodSettings : ScriptableObject
     public int maxDrawnPerCell = 4;
 
     /// <summary>
-    /// その子どもが好む深さ（行動モデル.md 13-15）。
-    /// 卵と若い幼虫はいちばん奥、育った幼虫は中ほど、繭は入口寄りを好む。
+    /// その子どもが好む深さ（地表から何cm下か。行動モデル.md 13-15）。
+    /// 卵と若い幼虫はいちばん深く、育った幼虫は中ほど、繭は浅いところを好む。
     /// </summary>
     public float PreferredDepth(BroodItem item)
     {
@@ -164,12 +164,12 @@ public class BroodSettings : ScriptableObject
     }
 
     /// <summary>
-    /// その深さが、その子どもの居場所としてどれだけ合っているか（0〜1）。
+    /// その深さ（cm）が、その子どもの居場所としてどれだけ合っているか（0〜1）。
     /// 1 なら好みどおり、0 なら合わない。
     /// </summary>
-    public float DepthFit(BroodItem item, float depth01)
+    public float DepthFit(BroodItem item, float depthCm)
     {
-        float gap = Mathf.Abs(depth01 - PreferredDepth(item));
+        float gap = Mathf.Abs(depthCm - PreferredDepth(item));
         return Mathf.Clamp01(1f - gap / Mathf.Max(0.0001f, preferredDepthTolerance));
     }
 
