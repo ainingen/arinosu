@@ -11,7 +11,10 @@ public enum BroodStage
 
 /// <summary>
 /// 子ども1個。GameObject は持たず、この配列だけで状態を持つ（13-11）。
+/// エディタで実行中にスクリプトを組み直すと、保存できない値は消えてしまうので、
+/// Unity が持ち越せるように [Serializable] にしてある。
 /// </summary>
+[System.Serializable]
 public class BroodItem
 {
     public BroodStage stage;
@@ -27,6 +30,11 @@ public class BroodItem
     public Ant carriedBy;
     /// <summary>空腹が続いている日数</summary>
     public float starveDays;
+
+    /// <summary>塊の中でのずらし方（単位円の中。描くときに幅を掛ける）。1個ごとに固定</summary>
+    public Vector2 drawUnitOffset;
+    /// <summary>描くときの向き（度）。1個ごとに固定</summary>
+    public float drawAngle;
 
     public float Hunger => 1f - crop;
 }
@@ -44,7 +52,7 @@ public class BroodField : MonoBehaviour
     [SerializeField] private AntSpawner antSpawner;
     [SerializeField] private Colony colony;
 
-    private readonly List<BroodItem> items = new List<BroodItem>();
+    [SerializeField] private List<BroodItem> items = new List<BroodItem>();
     /// <summary>マス（index）→ そこにある子ども。描画とクリック判定に使う。</summary>
     private readonly Dictionary<int, List<BroodItem>> byCell = new Dictionary<int, List<BroodItem>>();
     private readonly Stack<List<BroodItem>> listPool = new Stack<List<BroodItem>>();
@@ -85,6 +93,9 @@ public class BroodField : MonoBehaviour
             cellY = cellY,
             crop = 1f,
             size = stage == BroodStage.Larva ? 0.5f : 0f,
+            // 置き方は最初に決めて変えない（毎フレーム動くと塊がちらつく）
+            drawUnitOffset = Random.insideUnitCircle,
+            drawAngle = Random.Range(0f, 360f),
         };
         items.Add(item);
         AddToCell(item);
@@ -100,10 +111,21 @@ public class BroodField : MonoBehaviour
         return count;
     }
 
+    /// <summary>
+    /// マスごとの索引を作り直す（必要なときだけ）。
+    /// 索引は保存できない形なので、実行中の再コンパイルのあとは空になっている。
+    /// </summary>
+    private void EnsureIndex()
+    {
+        if (byCell.Count > 0 || items.Count == 0) return;
+        for (int i = 0; i < items.Count; i++) AddToCell(items[i]);
+    }
+
     /// <summary>そのマスにある子ども（なければ null）。</summary>
     public List<BroodItem> GetAtCell(int x, int y)
     {
         if (grid == null) return null;
+        EnsureIndex();
         List<BroodItem> list;
         return byCell.TryGetValue(y * grid.Width + x, out list) ? list : null;
     }
@@ -111,6 +133,7 @@ public class BroodField : MonoBehaviour
     private void Update()
     {
         if (settings == null || clock == null || grid == null) return;
+        EnsureIndex();
 
         double now = clock.ElapsedDays;
         float deltaDays = (float)(now - lastElapsedDays);

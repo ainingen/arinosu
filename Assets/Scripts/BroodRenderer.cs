@@ -12,21 +12,19 @@ public class BroodRenderer : MonoBehaviour
     [SerializeField] private BroodField broodField;
     [SerializeField] private BroodSettings settings;
 
-    [Header("素材（仮の図形）")]
+    [Header("素材（art/brood/README.md）")]
+    [Tooltip("色は素材に焼き込み済み。SpriteRenderer.color は白のまま使う")]
     [SerializeField] private Sprite eggSprite;
     [SerializeField] private Sprite larvaSprite;
-    [SerializeField] private Sprite pupaSprite;
-
-    [Header("色")]
-    [SerializeField] private Color eggColor = new Color(0.97f, 0.96f, 0.90f, 1f);
-    [SerializeField] private Color larvaColor = new Color(0.98f, 0.94f, 0.82f, 1f);
-    [SerializeField] private Color pupaColor = new Color(0.78f, 0.60f, 0.35f, 1f);
+    [SerializeField] private Sprite cocoonSprite;
 
     [Header("描き方")]
-    [Tooltip("土より前・アリより後ろ")]
-    [SerializeField] private int sortingOrder = -1;
-    [Tooltip("1マスの中でずらす幅（cm）")]
-    [SerializeField] private float scatter = 0.06f;
+    [Tooltip("土より前・アリより後ろ。繭→幼虫→卵 の順に前へ出す")]
+    [SerializeField] private int sortingOrder = -3;
+    [Tooltip("マスの中心からずらす幅（cm）。実寸だと繭は1マスより大きいので広めに散らす")]
+    [SerializeField] private float scatter = 0.25f;
+    [Tooltip("幼虫がいちばん小さいとき（size = 0）の倍率")]
+    [SerializeField, Range(0.05f, 1f)] private float larvaMinScale = 0.3f;
     [Tooltip("作り直す間隔（秒）。子どもの数が変わらなければ描き直さない")]
     [SerializeField] private float refreshInterval = 0.2f;
 
@@ -74,48 +72,50 @@ public class BroodRenderer : MonoBehaviour
             drawnInCell[key] = drawn + 1;
 
             SpriteRenderer renderer = Take();
-            ApplyLook(renderer, item, drawn);
+            ApplyLook(renderer, item);
         }
 
         // 余ったぶんは隠す
         for (int i = usedCount; i < pool.Count; i++) pool[i].enabled = false;
     }
 
-    private void ApplyLook(SpriteRenderer renderer, BroodItem item, int indexInCell)
+    /// <summary>
+    /// 1個ぶんの見た目を決める。
+    /// 素材は実寸で作ってあるので（PPU で調整済み）、倍率は等倍が基本。
+    /// 幼虫だけは育ち具合 size で大きくなる。
+    /// </summary>
+    private void ApplyLook(SpriteRenderer renderer, BroodItem item)
     {
         Sprite sprite;
-        Color color;
-        float size;
+        float scale = 1f;
+        int order;
 
         switch (item.stage)
         {
             case BroodStage.Egg:
-                sprite = eggSprite; color = eggColor; size = settings.eggSize;
+                sprite = eggSprite;
+                order = sortingOrder + 2;
                 break;
             case BroodStage.Larva:
-                sprite = larvaSprite; color = larvaColor;
-                size = Mathf.Lerp(settings.larvaSizeMin, settings.larvaSizeMax, Mathf.Clamp01(item.size));
+                sprite = larvaSprite;
+                scale = Mathf.Lerp(larvaMinScale, 1f, Mathf.Clamp01(item.size));
+                order = sortingOrder + 1;
                 break;
             default:
-                sprite = pupaSprite; color = pupaColor; size = settings.pupaSize;
+                sprite = cocoonSprite;
+                order = sortingOrder;
                 break;
         }
 
         renderer.enabled = true;
         renderer.sprite = sprite;
-        renderer.color = color;
+        renderer.color = Color.white;     // 色は素材に焼き込み済み
+        renderer.sortingOrder = order;    // 小さいものが上に見えるように
 
-        // マスの中で少しずつずらして、塊に見せる
-        float angle = indexInCell * 90f + 45f;
-        Vector2 offset = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad))
-            * (indexInCell == 0 ? 0f : scatter);
-
-        Vector2 center = grid.CellToWorld(item.cellX, item.cellY) + offset;
+        // ずらし方と向きは子ども1個ごとに決まっている（毎フレーム変えない）
+        Vector2 center = grid.CellToWorld(item.cellX, item.cellY) + item.drawUnitOffset * scatter;
         renderer.transform.position = new Vector3(center.x, center.y, 0f);
-
-        float spriteSize = sprite != null ? Mathf.Max(sprite.bounds.size.x, sprite.bounds.size.y) : 1f;
-        if (spriteSize <= 0f) spriteSize = 1f;
-        float scale = size / spriteSize;
+        renderer.transform.localRotation = Quaternion.Euler(0f, 0f, item.drawAngle);
         renderer.transform.localScale = new Vector3(scale, scale, 1f);
     }
 

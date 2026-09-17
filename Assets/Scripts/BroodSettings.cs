@@ -65,15 +65,8 @@ public class BroodSettings : ScriptableObject
     [Tooltip("寿命のばらつき（±の割合）")]
     [Range(0f, 1f)] public float lifespanVariation = 0.2f;
 
-    [Header("見た目（仮の図形）")]
-    [Tooltip("卵の大きさ（cm）")]
-    public float eggSize = 0.22f;
-    [Tooltip("幼虫の大きさ（cm）。size が 0→1 でこの範囲に広がる")]
-    public float larvaSizeMin = 0.25f;
-    public float larvaSizeMax = 0.5f;
-    [Tooltip("繭の大きさ（cm）")]
-    public float pupaSize = 0.45f;
-    [Tooltip("1マスに重ねて描く最大数")]
+    [Header("見た目")]
+    [Tooltip("1マスに重ねて描く最大数。大きさは素材の実寸（PPU）で決まる")]
     public int maxDrawnPerCell = 4;
 
     /// <summary>その段階の長さ（日）。確認用の倍率を掛けたもの。</summary>
