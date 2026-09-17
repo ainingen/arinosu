@@ -364,6 +364,26 @@ public class Colony : MonoBehaviour
     /// 巣の中で、その範囲にいるアリの数（自分は除く）。
     /// 掘削で「アリがたまっている場所ほど掘られる」を判定するのに使う。
     /// </summary>
+    /// <summary>
+    /// その場所の近くで休んでいるアリの数（行動モデル.md 13-15）。
+    /// 休んでいるアリの集まりが「休憩所」になる。
+    /// </summary>
+    public int CountRestingNear(Vector2 position, float radius)
+    {
+        var ants = Ant.All;
+        float radiusSq = radius * radius;
+        int count = 0;
+        for (int i = 0; i < ants.Count; i++)
+        {
+            Ant ant = ants[i];
+            if (ant == null || ant.IsQueen) continue;
+            if (ant.CurrentTask != AntTask.RestInNest) continue;
+            if ((ant.Position - position).sqrMagnitude > radiusSq) continue;
+            count++;
+        }
+        return count;
+    }
+
     public int CountNestmatesNear(Ant self, float radius)
     {
         if (self == null) return 0;

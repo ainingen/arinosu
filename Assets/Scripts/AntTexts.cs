@@ -52,8 +52,14 @@ public enum AntPlace
     Chamber,
     /// <summary>女王が近くにいる（行動モデル.md 13-7）</summary>
     QueenRoom,
-    /// <summary>子どもが集まっている</summary>
-    Nursery,
+    /// <summary>卵が集まっている</summary>
+    EggRoom,
+    /// <summary>幼虫が集まっている</summary>
+    LarvaRoom,
+    /// <summary>繭が集まっている</summary>
+    PupaRoom,
+    /// <summary>働きアリが休んでいる</summary>
+    RestRoom,
 }
 
 /// <summary>運んでいるもの。</summary>
@@ -188,7 +194,10 @@ public static class AntTexts
             case AntPlace.Tunnel: return "トンネル";
             case AntPlace.Chamber: return "部屋";
             case AntPlace.QueenRoom: return "女王の部屋";
-            case AntPlace.Nursery: return "育児室";
+            case AntPlace.EggRoom: return "卵の部屋";
+            case AntPlace.LarvaRoom: return "幼虫の部屋";
+            case AntPlace.PupaRoom: return "繭の部屋";
+            case AntPlace.RestRoom: return "休憩所";
             default: return "－";
         }
     }

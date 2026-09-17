@@ -254,36 +254,65 @@ public class BroodField : MonoBehaviour
     /// </summary>
     public int CountNear(int cellX, int cellY, int radius)
     {
-        int count = 0;
+        int same, other;
+        CountNear(cellX, cellY, radius, null, out same, out other);
+        return same + other;
+    }
+
+    /// <summary>
+    /// 同じ段階と違う段階を分けて数える（行動モデル.md 13-15）。
+    /// stage に null を渡すと、すべてが same になる。
+    /// </summary>
+    public void CountNear(int cellX, int cellY, int radius, BroodStage? stage,
+        out int same, out int other)
+    {
+        same = 0;
+        other = 0;
         for (int dy = -radius; dy <= radius; dy++)
         {
             for (int dx = -radius; dx <= radius; dx++)
             {
                 List<BroodItem> list = GetAtCell(cellX + dx, cellY + dy);
                 if (list == null) continue;
-                for (int i = 0; i < list.Count; i++) if (list[i].carriedBy == null) count++;
+                for (int i = 0; i < list.Count; i++)
+                {
+                    if (list[i].carriedBy != null) continue;
+                    if (stage == null || list[i].stage == stage.Value) same++;
+                    else other++;
+                }
             }
         }
-        return count;
+    }
+
+    /// <summary>そのマスにある子どものうち、いまの居場所がいちばん合っていないもの。</summary>
+    public BroodItem LeastFitAt(int cellX, int cellY, float nestValue)
+    {
+        List<BroodItem> list = GetAtCell(cellX, cellY);
+        if (list == null || settings == null) return null;
+
+        BroodItem worst = null;
+        float worstFit = float.MaxValue;
+        for (int i = 0; i < list.Count; i++)
+        {
+            if (list[i].carriedBy != null) continue;
+            float fit = settings.NestFit(list[i], nestValue);
+            if (fit >= worstFit) continue;
+            worstFit = fit;
+            worst = list[i];
+        }
+        return worst;
     }
 
     /// <summary>
-    /// そのマスにある子どもを1個持ち上げる（行動モデル.md 13-6）。
+    /// その子どもを持ち上げる（行動モデル.md 13-6）。
     /// 置かれているマスの情報は持ったままにして、置くときに書き換える。
     /// </summary>
-    public BroodItem PickUp(int cellX, int cellY, Ant carrier)
+    public BroodItem PickUp(BroodItem item, Ant carrier)
     {
-        List<BroodItem> list = GetAtCell(cellX, cellY);
-        if (list == null || carrier == null) return null;
-
-        for (int i = list.Count - 1; i >= 0; i--)
-        {
-            if (list[i].carriedBy != null) continue;
-            list[i].carriedBy = carrier;
-            Version++;
-            return list[i];
-        }
-        return null;
+        if (item == null || carrier == null || item.carriedBy != null) return null;
+        item.carriedBy = carrier;
+        Version++;
+        return item;
     }
 
     /// <summary>持っている子どもを、そのマスへ置く。</summary>
@@ -325,17 +354,27 @@ public class BroodField : MonoBehaviour
     /// </summary>
     public int CountWithin(Vector2 worldPosition, float range)
     {
-        if (grid == null) return 0;
+        int eggs, larvae, pupae;
+        CountWithin(worldPosition, range, out eggs, out larvae, out pupae);
+        return eggs + larvae + pupae;
+    }
+
+    /// <summary>その場所のまわりにある子どもを、段階ごとに数える（13-15）。</summary>
+    public void CountWithin(Vector2 worldPosition, float range, out int eggs, out int larvae, out int pupae)
+    {
+        eggs = 0; larvae = 0; pupae = 0;
+        if (grid == null) return;
+
         float rangeSq = range * range;
-        int count = 0;
         for (int i = 0; i < items.Count; i++)
         {
             BroodItem item = items[i];
             if (item.carriedBy != null) continue;
             if ((grid.CellToWorld(item.cellX, item.cellY) - worldPosition).sqrMagnitude > rangeSq) continue;
-            count++;
+            if (item.stage == BroodStage.Egg) eggs++;
+            else if (item.stage == BroodStage.Larva) larvae++;
+            else pupae++;
         }
-        return count;
     }
 
     /// <summary>その子どもを食べる（取り除く）。餓死とは別に数える。</summary>

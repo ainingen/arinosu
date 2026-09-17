@@ -248,7 +248,7 @@ public class Ant : MonoBehaviour
             if (!grid.WorldToCell(position, out x, out y)) return AntPlace.Surface;
             if (y >= grid.SurfaceRow) return AntPlace.Surface;
 
-            // 決め打ちの部屋は作らない。いま周りに何があるかで呼び名を決める（13-7）
+            // 決め打ちの部屋は作らない。いま周りに何があるかで呼び名を決める（13-7／13-15）
             if (broodSettings != null)
             {
                 float radius = broodSettings.roomSenseRadius;
@@ -257,9 +257,15 @@ public class Ant : MonoBehaviour
                     && (colony.Queen.Position - position).sqrMagnitude <= radius * radius)
                     return AntPlace.QueenRoom;
 
-                if (broodField != null
-                    && broodField.CountWithin(position, radius) >= broodSettings.roomBroodMin)
-                    return AntPlace.Nursery;
+                if (broodField != null)
+                {
+                    AntPlace room;
+                    if (TryNameBroodRoom(radius, out room)) return room;
+                }
+
+                if (colony != null
+                    && colony.CountRestingNear(position, radius) >= broodSettings.restRoomMin)
+                    return AntPlace.RestRoom;
             }
 
             int open = 0;
@@ -272,6 +278,26 @@ public class Ant : MonoBehaviour
             }
             return open >= chamberOpenCells ? AntPlace.Chamber : AntPlace.Tunnel;
         }
+    }
+
+    /// <summary>
+    /// まわりにいちばん多い段階から、部屋の呼び名を決める（行動モデル.md 13-15）。
+    /// どの段階も roomBroodMin に届かなければ、部屋とは呼ばない。
+    /// </summary>
+    private bool TryNameBroodRoom(float radius, out AntPlace room)
+    {
+        room = AntPlace.Tunnel;
+
+        int eggs, larvae, pupae;
+        broodField.CountWithin(position, radius, out eggs, out larvae, out pupae);
+
+        int best = Mathf.Max(eggs, Mathf.Max(larvae, pupae));
+        if (best < broodSettings.roomBroodMin) return false;
+
+        if (best == eggs) room = AntPlace.EggRoom;
+        else if (best == larvae) room = AntPlace.LarvaRoom;
+        else room = AntPlace.PupaRoom;
+        return true;
     }
 
     private void Awake()
@@ -498,8 +524,18 @@ public class Ant : MonoBehaviour
             return;
         }
 
-        // 止まっているときに、たまに歩き出す
         if (broodSettings == null) return;
+
+        // まだいちばん奥にいないなら、奥へ寄っていく（行動モデル.md 13-15）。
+        // 巣が掘り広げられて最奥が移っても、女王はゆっくり付いていく
+        if (nestField != null
+            && nestHere < nestField.MaxCavityValue - broodSettings.queenDeepTolerance)
+        {
+            queenWalkTimer = broodSettings.queenWanderSeconds;
+            return;
+        }
+
+        // いちばん奥に着いていれば、たまに動く程度
         if (Random.value < broodSettings.queenWanderChance)
             queenWalkTimer = broodSettings.queenWanderSeconds;
     }
@@ -1241,12 +1277,20 @@ public class Ant : MonoBehaviour
             var list = broodField.GetAtCell(cx, cy);
             if (list == null || list.Count == 0) continue;
 
-            float f = Crowdedness(cx, cy);
+            // そのマスでいちばん居場所の合っていない子どもを見る（行動モデル.md 13-15）
+            float nestHereValue = nestField != null ? nestField.GetAt(cx, cy) : 0f;
+            BroodItem candidate = broodField.LeastFitAt(cx, cy, nestHereValue);
+            if (candidate == null) continue;
+
+            float f = Crowdedness(cx, cy, candidate.stage);
             float k = broodSettings.kPick;
             float p = (k / (k + f)) * (k / (k + f));
+
+            // 好みの深さに合っている子どもは持ち上げない
+            p *= 1f - broodSettings.NestFit(candidate, nestHereValue);
             if (Random.value >= p) continue;
 
-            carriedBrood = broodField.PickUp(cx, cy, this);
+            carriedBrood = broodField.PickUp(candidate, this);
             if (carriedBrood == null) continue;
 
             carryBroodTimer = 0f;
@@ -1282,9 +1326,22 @@ public class Ant : MonoBehaviour
 
         if (hasCell && grid.IsPassable(x, y))
         {
-            float f = Crowdedness(x, y);
+            int same, other;
+            broodField.CountNear(x, y, broodSettings.broodSenseRadius, carriedBrood.stage,
+                out same, out other);
+
+            float full = Mathf.Max(0.0001f, broodSettings.broodFull);
+            float fSame = Mathf.Clamp01(same / full);
+            float fOther = Mathf.Clamp01(other / full);
+
             float k = broodSettings.kDrop;
-            float p = (f / (k + f)) * (f / (k + f));
+            float p = (fSame / (k + fSame)) * (fSame / (k + fSame));
+
+            // 好みの深さでだけ置く。違う段階が混ざっている場所は避ける（13-15）
+            float nestHereValue = nestField != null ? nestField.GetAt(x, y) : 0f;
+            p *= broodSettings.NestFit(carriedBrood, nestHereValue);
+            p *= 1f - broodSettings.mixPenalty * fOther;
+
             if (Random.value < p)
             {
                 DropBrood(x, y);
@@ -1292,16 +1349,38 @@ public class Ant : MonoBehaviour
             }
         }
 
-        // 置き場所を探して、巣の奥寄りを歩く
-        SteerAlongNest(tickTime, true, settings.homingBias);
+        // 置き場所を探して、その子どもが好む深さへ向かって歩く（13-15）
+        SteerTowardPreferredDepth(tickTime);
         AddWanderNoise(tickTime, settings.wanderSigma);
     }
 
-    /// <summary>そのマスのまわりが子どもでどれくらい混んでいるか（0〜1）。</summary>
-    private float Crowdedness(int cellX, int cellY)
+    /// <summary>
+    /// そのマスのまわりが「同じ段階の」子どもでどれくらい混んでいるか（0〜1）。
+    /// </summary>
+    private float Crowdedness(int cellX, int cellY, BroodStage stage)
     {
-        int near = broodField.CountNear(cellX, cellY, broodSettings.broodSenseRadius);
-        return Mathf.Clamp01(near / Mathf.Max(0.0001f, broodSettings.broodFull));
+        int same, other;
+        broodField.CountNear(cellX, cellY, broodSettings.broodSenseRadius, stage, out same, out other);
+        return Mathf.Clamp01(same / Mathf.Max(0.0001f, broodSettings.broodFull));
+    }
+
+    /// <summary>
+    /// 運んでいる子どもが好む深さへ向かって歩く（行動モデル.md 13-15）。
+    ///
+    /// 巣の匂いは奥ほど濃いので、今いる場所が好みより薄ければ奥へ、濃ければ入口側へ寄る。
+    /// 縦に段階が並ぶのは、この1つの規則から出る。
+    /// </summary>
+    private void SteerTowardPreferredDepth(float tickTime)
+    {
+        if (nestField == null || carriedBrood == null)
+        {
+            SteerAlongNest(tickTime, true, settings.homingBias);
+            return;
+        }
+
+        float preferred = broodSettings.PreferredNest(carriedBrood);
+        bool deeper = nestHere < preferred;
+        SteerAlongNest(tickTime, deeper, settings.turnGain);
     }
 
     /// <summary>持っている子どもをそのマスへ置き、巣の仕事に戻る。</summary>

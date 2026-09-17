@@ -32,6 +32,11 @@ public class NestField : MonoBehaviour
     public Vector2 EntranceWorld => entranceWorld;
     /// <summary>入口が見つかっているか。</summary>
     public bool HasEntrance => hasEntrance;
+
+    /// <summary>巣の中でいちばん濃い値（＝いちばん奥）。女王がここを目指す（13-15）。</summary>
+    public float MaxCavityValue { get; private set; }
+    /// <summary>入口からいちばん遠い空洞までの経路距離（マス）。深さの基準が効いているかの確認に使う。</summary>
+    public int MaxCavityDistance { get; private set; }
     /// <summary>層の中身（デバッグ表示用。書き換えないこと）。</summary>
     public float[] Values => values;
 
@@ -95,6 +100,8 @@ public class NestField : MonoBehaviour
 
         System.Array.Clear(values, 0, values.Length);
         hasEntrance = false;
+        MaxCavityValue = 0f;
+        MaxCavityDistance = 0;
 
         float entranceValue = settings != null ? settings.nestEntranceValue : 0.8f;
         float deepValue = settings != null ? settings.nestDeepValue : 1f;
@@ -138,6 +145,12 @@ public class NestField : MonoBehaviour
 
             float t = deepDistanceCells > 0f ? Mathf.Clamp01(distance / deepDistanceCells) : 1f;
             values[index] = Mathf.Lerp(entranceValue, deepValue, t);
+
+            // いちばん奥の濃さと、そこまでの経路距離を控えておく。
+            // 経路距離が nestDeepDistance を超えると濃さは 1.0 で頭打ちになるので、
+            // 「奥ほど濃い」が効かなくなっていないかを、この2つで見る
+            if (values[index] > MaxCavityValue) MaxCavityValue = values[index];
+            if (distance > MaxCavityDistance) MaxCavityDistance = distance;
 
             PushCavityNeighbors(x, y, distance, ref tail);
         }

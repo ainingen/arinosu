@@ -23,6 +23,8 @@ public class BroodSettings : ScriptableObject
     public float queenNestBias = 3f;
     [Tooltip("女王が進めるのは、巣の匂いがこれ以上のマスだけ（奥から出ない）")]
     [Range(0f, 1f)] public float queenMinNest = 0.9f;
+    [Tooltip("いちばん奥の濃さからこれだけ浅ければ、女王はさらに奥へ寄る（13-15）")]
+    public float queenDeepTolerance = 0.02f;
     [Tooltip("空腹のときに置く匂いの量の倍率（量は hunger × これ）")]
     public float queenHungerDeposit = 1f;
 
@@ -117,15 +119,59 @@ public class BroodSettings : ScriptableObject
     [Tooltip("寿命のばらつき（±の割合）")]
     [Range(0f, 1f)] public float lifespanVariation = 0.2f;
 
+    [Header("好む深さ（行動モデル.md 13-15）")]
+    [Tooltip("卵と若い幼虫が好む巣の匂いの濃さ（奥ほど濃い）")]
+    [Range(0.8f, 1f)] public float preferredNestEgg = 0.94f;
+    [Tooltip("育った幼虫が好む濃さ")]
+    [Range(0.8f, 1f)] public float preferredNestLarva = 0.90f;
+    [Tooltip("繭が好む濃さ（いちばん入口寄り）")]
+    [Range(0.8f, 1f)] public float preferredNestPupa = 0.84f;
+    [Tooltip("好みからこれだけ外れると、居場所として合わないとみなす")]
+    public float preferredNestTolerance = 0.06f;
+    [Tooltip("これ未満の幼虫は、卵と同じ深さを好む")]
+    [Range(0f, 1f)] public float youngLarvaSize = 0.3f;
+    [Tooltip("違う段階が混ざっている場所ほど置きにくくする強さ")]
+    [Range(0f, 1f)] public float mixPenalty = 0.7f;
+
     [Header("部屋の名前（行動モデル.md 13-7。表示だけ）")]
     [Tooltip("まわりを見る範囲（cm）")]
     public float roomSenseRadius = 2f;
-    [Tooltip("この数以上の子どもがあれば「育児室」と呼ぶ")]
+    [Tooltip("この数以上の子どもがあれば、その段階の部屋と呼ぶ")]
     public int roomBroodMin = 5;
+    [Tooltip("この数以上のアリが休んでいれば「休憩所」と呼ぶ")]
+    public int restRoomMin = 5;
 
     [Header("見た目")]
     [Tooltip("1マスに重ねて描く最大数。大きさは素材の実寸（PPU）で決まる")]
     public int maxDrawnPerCell = 4;
+
+    /// <summary>
+    /// その子どもが好む巣の匂いの濃さ（行動モデル.md 13-15）。
+    /// 卵と若い幼虫はいちばん奥、育った幼虫は中ほど、繭は入口寄りを好む。
+    /// </summary>
+    public float PreferredNest(BroodItem item)
+    {
+        if (item == null) return preferredNestLarva;
+        switch (item.stage)
+        {
+            case BroodStage.Egg:
+                return preferredNestEgg;
+            case BroodStage.Larva:
+                return item.size < youngLarvaSize ? preferredNestEgg : preferredNestLarva;
+            default:
+                return preferredNestPupa;
+        }
+    }
+
+    /// <summary>
+    /// その濃さが、その子どもの居場所としてどれだけ合っているか（0〜1）。
+    /// 1 なら好みどおり、0 なら合わない。
+    /// </summary>
+    public float NestFit(BroodItem item, float nestValue)
+    {
+        float gap = Mathf.Abs(nestValue - PreferredNest(item));
+        return Mathf.Clamp01(1f - gap / Mathf.Max(0.0001f, preferredNestTolerance));
+    }
 
     /// <summary>その段階の長さ（日）。確認用の倍率を掛けたもの。</summary>
     public float StageDuration(BroodStage stage)
