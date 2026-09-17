@@ -104,7 +104,8 @@ public class ColonyDebugUI : MonoBehaviour
             sb.AppendLine("　幼虫の空腹の平均＝" + brood.LarvaHungerAverage.ToString("0.00")
                 + "／はぐれ " + (brood.IsolatedRatio * 100f).ToString("0") + "%"
                 + "／幼虫の餓死 累計 " + brood.BroodDeaths + "匹");
-            sb.Append("　給餌 累計 " + brood.FeedCount + "回／" + brood.FedTotal.ToString("0.0"));
+            sb.Append("　給餌 累計 " + brood.FeedCount + "回／" + brood.FedTotal.ToString("0.0")
+                + "／共食い 累計 " + brood.CannibalizedCount + "個");
         }
         return sb.ToString();
     }

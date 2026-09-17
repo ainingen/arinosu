@@ -1,5 +1,14 @@
 using UnityEngine;
 
+/// <summary>餌の出方（行動モデル.md 5章）。</summary>
+public enum FoodSpawnMode
+{
+    /// <summary>ほぼ一定の間隔（平均に対して ±foodIntervalJitter だけ揺らす）</summary>
+    Regular,
+    /// <summary>指数分布。固まったり数日空いたりする（段階6の天変地異モード向け）</summary>
+    Random,
+}
+
 /// <summary>餌を置こうとした結果。</summary>
 public enum FoodPlacementResult
 {
@@ -107,13 +116,31 @@ public class FoodSpawner : MonoBehaviour
         takenAtWindowStart = FoodSource.TakenCount;
     }
 
-    /// <summary>次に餌が出る日を決める（指数分布）。</summary>
+    /// <summary>
+    /// 次に餌が出る日を決める（行動モデル.md 5章）。
+    ///
+    /// Regular は平均間隔を保ったまま少しだけ揺らす。
+    /// Random（指数分布）は間隔が大きくぶれて、数日途切れることがある。
+    /// 途切れるとコロニーが体の蓄えを削り切って一斉に倒れるので、普通の環境は Regular。
+    /// </summary>
     private void ScheduleNext()
     {
         float perDay = settings != null ? Mathf.Max(0.0001f, settings.foodPerDay) : 1f;
-        // -ln(U) / 率 で、平均 1/率 日の間隔になる
-        float u = Mathf.Max(0.0001f, Random.value);
-        double interval = -Mathf.Log(u) / perDay;
+        double mean = 1.0 / perDay;
+        double interval;
+
+        if (settings != null && settings.foodSpawnMode == FoodSpawnMode.Random)
+        {
+            // -ln(U) / 率 で、平均 1/率 日の間隔になる
+            float u = Mathf.Max(0.0001f, Random.value);
+            interval = -Mathf.Log(u) / perDay;
+        }
+        else
+        {
+            float jitter = settings != null ? settings.foodIntervalJitter : 0.5f;
+            interval = mean * Random.Range(1f - jitter, 1f + jitter);
+        }
+
         nextSpawnDay = clock.ElapsedDays + interval;
     }
 

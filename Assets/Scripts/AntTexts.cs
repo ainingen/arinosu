@@ -97,6 +97,8 @@ public enum AntMood
     SeekingHungryBrood,
     /// <summary>育児：子どもを運んでいる</summary>
     CarryingBrood,
+    /// <summary>飢饉：子どもを食べた直後</summary>
+    Cannibalizing,
     /// <summary>女王：卵を産んだ直後</summary>
     QueenLaid,
     /// <summary>女王：空腹</summary>
@@ -243,6 +245,7 @@ public static class AntTexts
             case AntMood.Feeding: return "この子に分けてやろう";
             case AntMood.SeekingHungryBrood: return "お腹をすかせた子がいる";
             case AntMood.CarryingBrood: return "この子を安全な場所へ";
+            case AntMood.Cannibalizing: return "生き延びるために";
             case AntMood.QueenLaid: return "卵を産んだ";
             case AntMood.QueenHungry: return "お腹がすいた。誰か";
             case AntMood.QueenCalm: return "静かだ";

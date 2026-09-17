@@ -72,6 +72,8 @@ public class BroodField : MonoBehaviour
     public int HatchedCount { get; private set; }
     /// <summary>これまでに死んだ子どもの数。</summary>
     public int BroodDeaths { get; private set; }
+    /// <summary>これまでに働きアリが食べた子どもの数（飢饉の共食い）。</summary>
+    public int CannibalizedCount { get; private set; }
     /// <summary>幼虫の空腹の平均（S_nurse に使う）。幼虫がいなければ 0。</summary>
     public float LarvaHungerAverage { get; private set; }
     /// <summary>今いる幼虫の数（S_forage の重み付けに使う）。</summary>
@@ -290,6 +292,41 @@ public class BroodField : MonoBehaviour
         if (item == null) return;
         item.carriedBy = null;
         MoveTo(item, cellX, cellY);
+    }
+
+    /// <summary>
+    /// 飢饉のときに食べる相手を探す（行動モデル.md 13-6）。
+    /// 対象は卵と、まだ育っていない幼虫だけ。繭と育ちかけの幼虫は食べない。
+    /// </summary>
+    public BroodItem FindCannibalTarget(Vector2 worldPosition, float range, float maxSize)
+    {
+        if (grid == null) return null;
+        float rangeSq = range * range;
+        BroodItem best = null;
+        float bestSq = float.MaxValue;
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            BroodItem item = items[i];
+            if (item.carriedBy != null) continue;
+            if (item.stage == BroodStage.Pupa) continue;
+            if (item.stage == BroodStage.Larva && item.size >= maxSize) continue;
+
+            float distanceSq = (grid.CellToWorld(item.cellX, item.cellY) - worldPosition).sqrMagnitude;
+            if (distanceSq > rangeSq || distanceSq >= bestSq) continue;
+            bestSq = distanceSq;
+            best = item;
+        }
+        return best;
+    }
+
+    /// <summary>その子どもを食べる（取り除く）。餓死とは別に数える。</summary>
+    public void Consume(BroodItem item)
+    {
+        int index = items.IndexOf(item);
+        if (index < 0) return;
+        CannibalizedCount++;
+        RemoveAt(index, false);
     }
 
     /// <summary>

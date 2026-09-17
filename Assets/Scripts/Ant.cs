@@ -112,6 +112,8 @@ public class Ant : MonoBehaviour
     private float nurseSearchTimer;
     /// <summary>今まさに幼虫へ食べさせたところか（気持ちの表示に使う）</summary>
     private bool feedingNow;
+    /// <summary>子どもを食べた直後の残り時間（気持ちの表示に使う）</summary>
+    private float cannibalTimer;
     /// <summary>運んでいる子ども（いなければ null）</summary>
     private BroodItem carriedBrood;
     /// <summary>子どもを持ってからの時間。長すぎたらその場に置く</summary>
@@ -218,6 +220,7 @@ public class Ant : MonoBehaviour
                 return AntMood.QueenCalm;
             }
 
+            if (cannibalTimer > 0f) return AntMood.Cannibalizing;
             if (alarm > settings.moodAlarmThreshold) return AntMood.Alarmed;
             if (Hunger > settings.moodHungryThreshold) return AntMood.Hungry;
             if (trailLostTimer > 0f) return AntMood.TrailLost;
@@ -338,6 +341,7 @@ public class Ant : MonoBehaviour
         }
 
         if (alarm > 0f) alarm = Mathf.Max(0f, alarm - settings.alarmDecayPerSecond * deltaTime);
+        if (cannibalTimer > 0f) cannibalTimer -= deltaTime;
 
         PerceptionStep(deltaTime);
 
@@ -1075,6 +1079,9 @@ public class Ant : MonoBehaviour
             return;
         }
 
+        // 飢饉：社会胃も体の蓄えも尽きかけたら、卵と若い幼虫を食べて栄養に戻す
+        if (TryCannibalize(tickTime)) return;
+
         // 分けられる分がなくなったら、育児はいったんやめる（体の蓄えは分けない）
         if (broodField == null || broodSettings == null || crop <= broodSettings.nurseMinCrop)
         {
@@ -1102,6 +1109,42 @@ public class Ant : MonoBehaviour
         if (TryPickBrood()) return;
 
         SearchForBrood(tickTime);
+    }
+
+    /// <summary>
+    /// 飢饉のときの共食い（行動モデル.md 13-6）。
+    ///
+    /// 社会胃が尽き、体の蓄えも残りわずかなときだけ起きる。
+    /// 食べるのは卵と、まだ育っていない幼虫だけ。育ちかけの幼虫と繭は食べない。
+    /// 「投資の少ない個体から回収する」という形で、コロニーが飢饉を越える。
+    /// </summary>
+    private bool TryCannibalize(float tickTime)
+    {
+        if (broodField == null || broodSettings == null) return false;
+        if (crop > broodSettings.nurseMinCrop) return false;
+        if (reserve >= broodSettings.cannibalReserve) return false;
+
+        BroodItem target = broodField.FindCannibalTarget(position,
+            broodSettings.broodSenseRange, broodSettings.cannibalMaxSize);
+        if (target == null) return false;
+
+        if (!WithinContact(target))
+        {
+            SteerTowardCell(target.cellX, target.cellY, tickTime);
+            return true;
+        }
+
+        float gain = target.stage == BroodStage.Egg
+            ? broodSettings.cannibalGainEgg
+            : broodSettings.cannibalGainLarva;
+
+        broodField.Consume(target);
+        crop = Mathf.Clamp01(crop + gain);
+        cannibalTimer = cannibalMoodSeconds;
+
+        task = AntTask.RestInNest;
+        nurseSearchTimer = 0f;
+        return true;
     }
 
     /// <summary>そのマスへ向かって歩く（近くまで来て相手が分かっているとき）。</summary>
@@ -1245,6 +1288,9 @@ public class Ant : MonoBehaviour
             default: return AntCarry.Cocoon;
         }
     }
+
+    /// <summary>「生き延びるために」と出しておく時間（秒）。</summary>
+    private const float cannibalMoodSeconds = 3f;
 
     /// <summary>諦めるまでの時間（設定がなければ既定値）。</summary>
     private float NurseGiveUpSeconds => broodSettings != null ? broodSettings.nurseGiveUpSeconds : 20f;

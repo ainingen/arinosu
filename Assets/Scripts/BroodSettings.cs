@@ -79,6 +79,16 @@ public class BroodSettings : ScriptableObject
     [Tooltip("匂いを置き直す間隔（ゲーム内秒）")]
     public float depositInterval = 0.1f;
 
+    [Header("飢饉の共食い（行動モデル.md 13-6）")]
+    [Tooltip("体の蓄えがこれを下回り、かつ社会胃も尽きたとき、子どもを食べて栄養に戻す")]
+    [Range(0f, 1f)] public float cannibalReserve = 0.2f;
+    [Tooltip("食べてよい幼虫の大きさの上限。育ちかけの幼虫は食べない")]
+    [Range(0f, 1f)] public float cannibalMaxSize = 0.3f;
+    [Tooltip("卵1個から戻る量")]
+    public float cannibalGainEgg = 0.15f;
+    [Tooltip("若い幼虫1匹から戻る量")]
+    public float cannibalGainLarva = 0.4f;
+
     [Header("集積（行動モデル.md 13-6）")]
     [Tooltip("はぐれた子どもほど拾いやすくなる。小さいほど拾いにくい")]
     public float kPick = 0.3f;

@@ -212,8 +212,12 @@ public class AntSettings : ScriptableObject
     public float larvaHungerMax = 10f;
 
     [Header("餌")]
+    [Tooltip("餌の出方。Regular＝ほぼ一定の間隔、Random＝指数分布（間隔が大きくぶれる）")]
+    public FoodSpawnMode foodSpawnMode = FoodSpawnMode.Regular;
     [Tooltip("1日あたりに現れる餌の平均個数")]
     public float foodPerDay = 1f;
+    [Tooltip("Regular のときの間隔のゆらぎ（±の割合）")]
+    [Range(0f, 1f)] public float foodIntervalJitter = 0.5f;
     [Tooltip("餌1個の残量（アリ何匹分か）")]
     public int foodAmountMin = 10;
     public int foodAmountMax = 30;
