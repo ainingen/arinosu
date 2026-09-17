@@ -82,13 +82,21 @@ MonoBehaviour:
   digBase: 0.002
   digMarkerGain: 0.3
   digCrowdGain: 0
-  digBroodGain: 0.05
-  digQueenGain: 0.05
+  digBroodGain: 0.3
+  digQueenGain: 0.3
   queenRoomRadius: 2
   digRestGain: 0.02
-  roomHorizontalBias: 3
+  roomVerticalFactor: 0.3
+  roomMaxHeight: 5
+  roomMarkerDamp: 0.2
+  digBaseHorizontalBias: 2
   roomRadius: 1.5
-  roomMaxCells: 60
+  roomCellsPerBrood: 4
+  roomBaseCells: 20
+  roomQueenCells: 40
+  roomCellsPerAnt: 2
+  depthSearchRadius: 5
+  depthTargetInterval: 1
   restDepthLow: 0.2
   restDepthHigh: 0.8
   digCrowdRadius: 1.5

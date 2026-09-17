@@ -21,7 +21,7 @@ MonoBehaviour:
   queenMinNest: 0.9
   queenDeepTolerance: 0.05
   queenHungerDeposit: 0.05
-  layPerDay: 2
+  layPerDay: 3
   layMinCrop: 0.5
   layCost: 0.05
   eggDays: 12
@@ -55,9 +55,9 @@ MonoBehaviour:
   carryGiveUpSeconds: 30
   broodSpaceWeight: 0.5
   newAdultCrop: 0.5
-  initialEggs: 8
-  initialLarvae: 6
-  initialPupae: 4
+  initialEggs: 12
+  initialLarvae: 10
+  initialPupae: 8
   workerLifespanDays: 180
   lifespanVariation: 0.2
   preferredDepthEgg: 0.9

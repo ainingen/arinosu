@@ -652,23 +652,20 @@ public class Ant : MonoBehaviour
         int neighbors = colony != null ? colony.CountNestmatesNear(this, settings.digCrowdRadius) : 0;
         float crowd = Mathf.Clamp01(neighbors / Mathf.Max(0.0001f, settings.digCrowdFull));
 
+        // 子どもの塊・女王・休んでいるアリのまわりは掘り広げられ、膨らみ（部屋）になる（13-15）
+        float room = RoomTerm(x, y, candidateX, candidateY);
+
         // 跡をたどっているときだけ、跡の項が効く。
-        // 跡がないとき（新しいトンネルの起点）は基礎の確率だけで掘る
+        // 跡がないとき（新しいトンネルの起点）は基礎の確率だけで掘る。
+        // 部屋の中では、トンネルを伸ばす力を弱めて横へ広がるようにする
         float probability = settings.digBase + settings.digCrowdGain * crowd;
-        if (marker > 0f) probability += settings.digMarkerGain * (marker / markerMax);
-
-        // 子どもの塊・女王・休んでいるアリのまわりは掘り広げられ、膨らみ（部屋）になる（13-7／13-15）
-        float room = settings.digBroodGain * BroodSmellAround(candidateX, candidateY)
-            + settings.digQueenGain * (NearQueen(candidateX, candidateY) ? 1f : 0f)
-            + settings.digRestGain * RestCrowdAround(candidateX, candidateY);
-
-        if (room > 0f)
+        if (marker > 0f)
         {
-            // 大きくなりすぎた部屋は、それ以上広げない
-            if (RoomIsFull(candidateX, candidateY)) room = 0f;
-            // 左右の土を掘りやすくして、部屋を横長にする（トンネルの項には掛けない）
-            else if (candidateY == y) room *= settings.roomHorizontalBias;
+            float markerTerm = settings.digMarkerGain * (marker / markerMax);
+            if (room > 0f) markerTerm *= settings.roomMarkerDamp;
+            probability += markerTerm;
         }
+
         probability += room;
 
         if (Random.value >= probability) return;
@@ -700,22 +697,74 @@ public class Ant : MonoBehaviour
         return Mathf.Clamp01(max / scale);
     }
 
-    /// <summary>その土のマスのそばで休んでいるアリの混み具合（0〜1。行動モデル.md 13-15）。</summary>
-    private float RestCrowdAround(int cellX, int cellY)
+    /// <summary>
+    /// 部屋を広げる項（行動モデル.md 13-15）。
+    ///
+    /// 掘るのは**左右の土が基本**。上下は、その場の空洞がまだ低いときだけ弱く許す。
+    /// これで部屋が横長になり、縦の通路とは別物になる。
+    /// 広さの上限は中身に比例させる（子どもが多い部屋ほど広く、女王の部屋は決まった広さ）。
+    /// </summary>
+    private float RoomTerm(int fromX, int fromY, int cellX, int cellY)
     {
-        if (colony == null || grid == null || settings.digRestGain <= 0f) return 0f;
-        int resting = colony.CountRestingNear(grid.CellToWorld(cellX, cellY), settings.digCrowdRadius);
-        return Mathf.Clamp01(resting / Mathf.Max(0.0001f, settings.digCrowdFull));
+        if (grid == null) return 0f;
+
+        float brood = settings.digBroodGain * BroodSmellAround(cellX, cellY);
+        float queen = NearQueen(cellX, cellY) ? settings.digQueenGain : 0f;
+        float rest = settings.digRestGain * RestCrowdAround(cellX, cellY);
+        if (brood <= 0f && queen <= 0f && rest <= 0f) return 0f;
+
+        // 掘る向き：左右が基本。上下は空洞がまだ低いときだけ
+        float direction;
+        if (cellY == fromY)
+        {
+            direction = 1f;
+        }
+        else
+        {
+            if (OpenHeightAt(fromX, fromY) >= settings.roomMaxHeight) return 0f;
+            direction = settings.roomVerticalFactor;
+        }
+
+        // 広さの上限は中身の量で決まる
+        Vector2 here = grid.CellToWorld(cellX, cellY);
+        int open = CountOpenAround(cellX, cellY);
+        float room = 0f;
+
+        if (brood > 0f && broodField != null)
+        {
+            int count = broodField.CountWithin(here, settings.roomRadius);
+            if (open <= settings.roomCellsPerBrood * count + settings.roomBaseCells) room += brood;
+        }
+        if (queen > 0f && open <= settings.roomQueenCells) room += queen;
+        if (rest > 0f && colony != null)
+        {
+            int resting = colony.CountRestingNear(here, settings.roomRadius);
+            if (open <= settings.roomCellsPerAnt * resting) room += rest;
+        }
+
+        return room * direction;
     }
 
-    /// <summary>
-    /// その土のマスのまわりが、部屋として十分広いか（行動モデル.md 13-15）。
-    /// 広ければ、部屋を広げる項を止める。トンネルを伸ばす項は止めない。
-    /// </summary>
-    private bool RoomIsFull(int cellX, int cellY)
+    /// <summary>その場所の空洞が縦に何マス続いているか（部屋の高さ）。</summary>
+    private int OpenHeightAt(int cellX, int cellY)
     {
-        if (grid == null) return false;
+        int height = 1;
+        for (int y = cellY + 1; y < cellY + settings.roomMaxHeight + 2; y++)
+        {
+            if (!grid.IsPassable(cellX, y)) break;
+            height++;
+        }
+        for (int y = cellY - 1; y > cellY - settings.roomMaxHeight - 2; y--)
+        {
+            if (!grid.IsPassable(cellX, y)) break;
+            height++;
+        }
+        return height;
+    }
 
+    /// <summary>その土のマスのまわり（roomRadius）にある空洞のマス数。</summary>
+    private int CountOpenAround(int cellX, int cellY)
+    {
         int radius = Mathf.CeilToInt(settings.roomRadius / grid.CellSize);
         int open = 0;
         for (int dy = -radius; dy <= radius; dy++)
@@ -724,10 +773,17 @@ public class Ant : MonoBehaviour
             {
                 if (dx * dx + dy * dy > radius * radius) continue;
                 if (grid.IsPassable(cellX + dx, cellY + dy)) open++;
-                if (open > settings.roomMaxCells) return true;
             }
         }
-        return false;
+        return open;
+    }
+
+    /// <summary>その土のマスのそばで休んでいるアリの混み具合（0〜1。行動モデル.md 13-15）。</summary>
+    private float RestCrowdAround(int cellX, int cellY)
+    {
+        if (colony == null || grid == null || settings.digRestGain <= 0f) return 0f;
+        int resting = colony.CountRestingNear(grid.CellToWorld(cellX, cellY), settings.digCrowdRadius);
+        return Mathf.Clamp01(resting / Mathf.Max(0.0001f, settings.digCrowdFull));
     }
 
     /// <summary>その土のマスが女王のそばか（行動モデル.md 13-7）。</summary>
@@ -782,8 +838,9 @@ public class Ant : MonoBehaviour
             return true;
         }
 
-        // 跡がない：隣接する土からランダムに1つ選ぶ（新しいトンネルの起点）
-        int candidateCount = 0;
+        // 跡がない：隣接する土から1つ選ぶ（新しいトンネルの起点）
+        float weightSum = 0f;
+        bool found = false;
         for (int i = 0; i < 4; i++)
         {
             int dx = i == 0 ? 1 : (i == 1 ? -1 : 0);
@@ -793,13 +850,17 @@ public class Ant : MonoBehaviour
             if (!grid.IsInside(nx, ny)) continue;
             if (grid.GetCell(nx, ny) != CellType.Soil) continue;
 
-            candidateCount++;
-            // 数えながら等確率で1つを選ぶ
-            if (Random.Range(0, candidateCount) != 0) continue;
+            // 左右の土を選びやすくする（新しい枝が横へ出る。行動モデル.md 13-15）
+            float weight = dy == 0 ? settings.digBaseHorizontalBias : 1f;
+            weightSum += weight;
+
+            // 重みつきで1つを選ぶ
+            if (Random.value * weightSum > weight) continue;
             targetX = nx;
             targetY = ny;
+            found = true;
         }
-        return candidateCount > 0;
+        return found;
     }
 
     /// <summary>掘る時間を進める。掘り終わったらマスを空洞に変える。</summary>

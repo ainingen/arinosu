@@ -176,12 +176,25 @@ public class AntSettings : ScriptableObject
     public float queenRoomRadius = 2f;
     [Tooltip("休んでいるアリの集まりのまわりを掘り広げる強さ（行動モデル.md 13-15）")]
     public float digRestGain = 0.02f;
-    [Tooltip("部屋を広げる項は、左右の土をこの倍だけ掘りやすくする（横長の部屋になる）")]
-    public float roomHorizontalBias = 3f;
+    [Tooltip("部屋を広げる項が上下の土を掘るときの弱め方（左右が基本）")]
+    [Range(0f, 1f)] public float roomVerticalFactor = 0.3f;
+    [Tooltip("空洞の高さがこのマス数以上なら、部屋の項では上下を掘らない")]
+    public int roomMaxHeight = 5;
+    [Tooltip("部屋の中では、トンネルを伸ばす掘削跡の項をこの倍に弱める")]
+    [Range(0f, 1f)] public float roomMarkerDamp = 0.2f;
+    [Tooltip("新しいトンネルの起点を選ぶとき、左右の土をこの倍だけ選びやすくする")]
+    public float digBaseHorizontalBias = 2f;
+
     [Tooltip("部屋の大きさを見る範囲（cm）")]
     public float roomRadius = 1.5f;
-    [Tooltip("この範囲の空洞がこれを超えたら、部屋を広げる項を止める")]
-    public int roomMaxCells = 60;
+    [Tooltip("子ども1個あたり、この数だけ部屋を広げてよい")]
+    public float roomCellsPerBrood = 4f;
+    [Tooltip("子どもの部屋の下地の広さ")]
+    public int roomBaseCells = 20;
+    [Tooltip("女王の部屋の広さ")]
+    public int roomQueenCells = 40;
+    [Tooltip("休んでいるアリ1匹あたり、この数だけ休憩所を広げてよい")]
+    public float roomCellsPerAnt = 2f;
 
     [Header("深さの目標（行動モデル.md 13-15）")]
     [Tooltip("目標にする空洞マスを探す範囲（cm）")]
