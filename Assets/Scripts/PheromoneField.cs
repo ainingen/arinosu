@@ -9,6 +9,11 @@ public enum PheromoneLayer
     Alarm = 1,
     /// <summary>掘削跡（掘った場所に集中させる。行動モデル.md 12-4）</summary>
     Dig = 2,
+    /// <summary>
+    /// 幼虫の空腹の匂い（行動モデル.md 13-3）。
+    /// 段階5aでは、空腹の女王がその場に置くだけで、たどる側はまだいない。
+    /// </summary>
+    LarvaHunger = 3,
 }
 
 /// <summary>
@@ -75,10 +80,11 @@ public class PheromoneField : MonoBehaviour
         height = grid.Height;
         int count = width * height;
 
-        layers = new Layer[3];
+        layers = new Layer[4];
         layers[(int)PheromoneLayer.Trail] = new Layer { values = new float[count], buffer = new float[count] };
         layers[(int)PheromoneLayer.Alarm] = new Layer { values = new float[count], buffer = new float[count] };
         layers[(int)PheromoneLayer.Dig] = new Layer { values = new float[count], buffer = new float[count] };
+        layers[(int)PheromoneLayer.LarvaHunger] = new Layer { values = new float[count], buffer = new float[count] };
         passable = new bool[count];
         ApplySettings();
         RefreshPassable();
@@ -102,6 +108,11 @@ public class PheromoneField : MonoBehaviour
         dig.halfLife = settings.digHalfLife;
         dig.diffusion = settings.digDiffusion;
         dig.max = settings.digMax;
+
+        var larvaHunger = layers[(int)PheromoneLayer.LarvaHunger];
+        larvaHunger.halfLife = settings.larvaHungerHalfLife;
+        larvaHunger.diffusion = settings.larvaHungerDiffusion;
+        larvaHunger.max = settings.larvaHungerMax;
     }
 
     /// <summary>通れるマスの控えを作り直し、固体になったマスの濃度を消す。</summary>

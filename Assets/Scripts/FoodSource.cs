@@ -27,12 +27,25 @@ public class FoodSource : MonoBehaviour
     [SerializeField] private float labelMargin = 0.18f;
 
     private AntSettings settings;
+    private GameClock clock;
     private int amount;
     private bool labelVisible;
+    /// <summary>この餌が現れた日。寿命の判定に使う</summary>
+    private double spawnedAtDays;
 
     /// <summary>今ある餌の一覧（アリが近くの餌を探すのに使う）。</summary>
     private static readonly List<FoodSource> all = new List<FoodSource>();
     public static IReadOnlyList<FoodSource> All => all;
+
+    /// <summary>食べ切られずに乾いて消えた数（デバッグ表示用）。</summary>
+    private static int expiredCount;
+    public static int ExpiredCount => expiredCount;
+
+    /// <summary>数え上げを 0 に戻す（プレイ開始時に FoodSpawner から呼ぶ）。</summary>
+    public static void ResetExpiredCount()
+    {
+        expiredCount = 0;
+    }
 
     /// <summary>残量（アリ何匹分か）。</summary>
     public int Amount => amount;
@@ -42,7 +55,12 @@ public class FoodSource : MonoBehaviour
     private void Awake()
     {
         if (spriteRenderer == null) spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        if (clock == null) clock = FindFirstObjectByType<GameClock>();
+        if (clock != null) spawnedAtDays = clock.ElapsedDays;
     }
+
+    /// <summary>現れてからの日数。</summary>
+    public float AgeDays => clock != null ? (float)(clock.ElapsedDays - spawnedAtDays) : 0f;
 
     private void OnEnable()
     {
@@ -56,6 +74,16 @@ public class FoodSource : MonoBehaviour
 
     private void Update()
     {
+        // 乾いて消える（行動モデル.md 5章）。
+        // 食べ切られない餌がいつまでも残ると、上限の枠を占めて新しい餌が出なくなる
+        if (settings != null && clock != null && settings.foodLifetimeDays > 0f
+            && AgeDays >= settings.foodLifetimeDays)
+        {
+            expiredCount++;
+            Destroy(gameObject);
+            return;
+        }
+
         // 残量の数字は道しるべの重ね表示（F1）と一緒に出す
         bool shouldShow = FieldDebugOverlay.ShowFoodAmounts;
         if (shouldShow == labelVisible) return;

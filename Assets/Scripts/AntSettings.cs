@@ -90,10 +90,19 @@ public class AntSettings : ScriptableObject
     public float fullToEmptyDays = 2f;
     [Tooltip("動いているときの消費の倍率")]
     public float movingMetabolism = 1.5f;
-    [Tooltip("空っぽのまま何日で餓死するか")]
-    public float starveDays = 1f;
     [Tooltip("餌を1回持ち帰るときの、配る元手の量")]
     public float carryLoad = 1f;
+
+    [Header("体の蓄え（脂肪体。行動モデル.md 4章）")]
+    [Tooltip("社会胃がこれより満ちている間、余りを体の蓄えへ回す")]
+    [Range(0f, 1f)] public float reserveFillAbove = 0.7f;
+    [Tooltip("1日あたり、社会胃から体の蓄えへ移す量")]
+    public float reserveFillPerDay = 0.5f;
+    [Tooltip("満タンの蓄えだけで何日生きられるか。社会胃が空の間はここから引く")]
+    public float reserveDays = 14f;
+    [Tooltip("開始時と羽化時の蓄え（この範囲でばらつかせる）")]
+    [Range(0f, 1f)] public float startReserveMin = 0.3f;
+    [Range(0f, 1f)] public float startReserveMax = 0.8f;
 
     [Header("口移し（栄養交換）")]
     [Tooltip("触れ合ったとみなす距離（cm）")]
@@ -182,12 +191,22 @@ public class AntSettings : ScriptableObject
     [Tooltip("外に出てからこれだけ経っても置けなければ、その場で捨てる（秒）")]
     public float dumpGiveUpSeconds = 20f;
 
+    [Header("子どもの匂い（行動モデル.md 13-3）")]
+    [Tooltip("幼虫の空腹の匂いが半分になるまでの時間（ゲーム内秒）")]
+    public float larvaHungerHalfLife = 10f;
+    [Tooltip("幼虫の空腹の匂いを1回の拡散で隣へ渡す割合の合計")]
+    [Range(0f, 1f)] public float larvaHungerDiffusion = 0.05f;
+    [Tooltip("1マスに乗る濃さの上限")]
+    public float larvaHungerMax = 10f;
+
     [Header("餌")]
     [Tooltip("1日あたりに現れる餌の平均個数")]
     public float foodPerDay = 1f;
     [Tooltip("餌1個の残量（アリ何匹分か）")]
-    public int foodAmountMin = 3;
-    public int foodAmountMax = 8;
+    public int foodAmountMin = 10;
+    public int foodAmountMax = 30;
+    [Tooltip("餌が現れてから消えるまでの日数。食べ切られなくても乾いて消える")]
+    public float foodLifetimeDays = 2f;
     [Tooltip("巣の入口からこれだけ離れた場所に出す（cm）。自動で出るぶんも F5 の手置きも同じ値を見る")]
     public float foodMinDistanceFromEntrance = 5f;
     [Tooltip("餌の最小の直径（cm）。残量が減ってもこれより小さくしない")]
@@ -196,8 +215,9 @@ public class AntSettings : ScriptableObject
     public float foodMaxDiameter = 1.6f;
     [Tooltip("開始時に置いておく餌の数")]
     public int initialFoodCount = 1;
-    [Tooltip("地表に同時に置ける餌の数。これに達しているあいだは新しい餌を出さない")]
-    public int maxFoodSources = 6;
+    [Tooltip("地表に同時に置ける餌の数。これに達しているあいだは新しい餌を出さない。"
+        + "foodPerDay × foodLifetimeDays より十分大きくしないと、上限で詰まる")]
+    public int maxFoodSources = 10;
 
     [Header("デバッグ表示")]
     [Tooltip("重ね表示を作り直す間隔（秒）")]

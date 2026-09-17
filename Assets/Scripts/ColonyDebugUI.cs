@@ -9,6 +9,8 @@ using UnityEngine;
 public class ColonyDebugUI : MonoBehaviour
 {
     [SerializeField] private Colony colony;
+    [Tooltip("餌までの距離を測るのに使う。未指定ならシーンから探す")]
+    [SerializeField] private NestField nestField;
     [SerializeField] private TMP_Text label;
     [Tooltip("表示を作り直す間隔（秒）")]
     [SerializeField] private float refreshInterval = 0.25f;
@@ -24,6 +26,7 @@ public class ColonyDebugUI : MonoBehaviour
     private void Awake()
     {
         if (colony == null) colony = FindFirstObjectByType<Colony>();
+        if (nestField == null) nestField = FindFirstObjectByType<NestField>();
     }
 
     private void Start()
@@ -85,8 +88,53 @@ public class ColonyDebugUI : MonoBehaviour
         sb.AppendLine("掘る刺激 S_dig＝" + colony.DigStimulus.ToString("0.00"));
         sb.AppendLine("　巣の空洞＝" + colony.CavityCells + " / 目標 " + colony.TargetCavityCells + "マス"
             + "／掘っている＝" + digging + "匹");
-        sb.Append("土：掘った " + colony.DugCells + "／塚に置いた " + colony.MoundCells
+        sb.AppendLine("土：掘った " + colony.DugCells + "／塚に置いた " + colony.MoundCells
             + "／捨てた " + colony.DiscardedSoil);
+        sb.AppendLine(BuildFoodText());
+
+        // 生活環の内訳（段階5）
+        var brood = FindFirstObjectByType<BroodField>();
+        if (brood != null)
+        {
+            int queens = 0;
+            for (int i = 0; i < total; i++)
+            {
+                Ant ant = Ant.All[i];
+                if (ant != null && ant.IsQueen) queens++;
+            }
+            sb.Append("女王 " + queens + "／卵 " + brood.CountOf(BroodStage.Egg)
+                + "／幼虫 " + brood.CountOf(BroodStage.Larva)
+                + "／繭 " + brood.CountOf(BroodStage.Pupa)
+                + "／羽化 " + brood.HatchedCount + "匹");
+        }
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// 地表の餌の様子。
+    /// 遠い餌が上限の枠を占めて新しい餌が出なくなる詰まりは、
+    /// 画面を見ているだけでは分からないので数字で出す。
+    /// </summary>
+    private string BuildFoodText()
+    {
+        var foods = FoodSource.All;
+        int total = 0;
+        float nearest = -1f;
+        bool hasEntrance = nestField != null && nestField.HasEntrance;
+        float entranceX = hasEntrance ? nestField.EntranceWorld.x : 0f;
+
+        for (int i = 0; i < foods.Count; i++)
+        {
+            FoodSource food = foods[i];
+            if (food == null) continue;
+            total += food.Amount;
+            if (!hasEntrance) continue;
+            float distance = Mathf.Abs(food.Position.x - entranceX);
+            if (nearest < 0f || distance < nearest) nearest = distance;
+        }
+
+        return "餌：地表に " + foods.Count + "個／合計残量 " + total
+            + "／最寄り " + (nearest < 0f ? "－" : nearest.ToString("0.0") + "cm")
+            + "／乾いて消えた " + FoodSource.ExpiredCount;
     }
 }

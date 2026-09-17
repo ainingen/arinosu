@@ -13,6 +13,9 @@ public class AntSelector : MonoBehaviour
     [SerializeField] private Camera targetCamera;
     [SerializeField] private CameraController cameraController;
     [SerializeField] private AntInfoPanel infoPanel;
+    [Tooltip("子どものクリック判定に使う。未指定ならシーンから探す")]
+    [SerializeField] private BroodField broodField;
+    [SerializeField] private SoilGrid grid;
 
     [Header("クリックの当たり")]
     [Tooltip("アリを選べる範囲（Unity単位 ＝ cm）。体の大きさくらい")]
@@ -59,7 +62,37 @@ public class AntSelector : MonoBehaviour
         if (IsPointerOverUI()) return;
 
         Vector3 world = targetCamera.ScreenToWorldPoint(mouse.position.ReadValue());
-        Select(FindAntNear(world));
+
+        Ant ant = FindAntNear(world);
+        if (ant != null)
+        {
+            Select(ant);
+            return;
+        }
+
+        // アリがいなければ、そのマスの子どもを見る（行動モデル.md 13-8）
+        BroodItem brood = FindBroodAt(world);
+        if (brood != null)
+        {
+            Select(null);
+            if (infoPanel != null) infoPanel.ShowBrood(brood);
+            return;
+        }
+
+        Select(null);
+    }
+
+    /// <summary>クリックしたマスにある子ども（いちばん上の1個）。</summary>
+    private BroodItem FindBroodAt(Vector2 worldPosition)
+    {
+        if (broodField == null) broodField = FindFirstObjectByType<BroodField>();
+        if (broodField == null || grid == null) grid = FindFirstObjectByType<SoilGrid>();
+        if (broodField == null || grid == null) return null;
+
+        int x, y;
+        if (!grid.WorldToCell(worldPosition, out x, out y)) return null;
+        var list = broodField.GetAtCell(x, y);
+        return list != null && list.Count > 0 ? list[list.Count - 1] : null;
     }
 
     /// <summary>UI の上をクリックしたか（パネルを押したときにアリの選択を変えないため）。</summary>

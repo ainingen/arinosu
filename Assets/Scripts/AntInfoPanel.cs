@@ -20,11 +20,16 @@ public class AntInfoPanel : MonoBehaviour
     [SerializeField] private TMP_Text moodHeadingText;
     [Tooltip("内勤⇔外勤のゲージ（Image の Fill Amount で表す）")]
     [SerializeField] private Image roleGaugeFill;
+    [Tooltip("体の蓄え（脂肪体）の見出し")]
+    [SerializeField] private TMP_Text reserveText;
+    [Tooltip("体の蓄えのゲージ（Image の Fill Amount で表す）")]
+    [SerializeField] private Image reserveGaugeFill;
 
     [Tooltip("表示を作り直す間隔（秒）。0 なら毎フレーム")]
     [SerializeField] private float refreshInterval = 0.2f;
 
     private Ant target;
+    private BroodItem targetBrood;
     private float timer;
 
     /// <summary>今表示しているアリ。</summary>
@@ -46,16 +51,27 @@ public class AntInfoPanel : MonoBehaviour
         Refresh();
     }
 
+    /// <summary>子どもの情報を表示する（行動モデル.md 13-8）。</summary>
+    public void ShowBrood(BroodItem brood)
+    {
+        target = null;
+        targetBrood = brood;
+        if (panelRoot != null) panelRoot.SetActive(brood != null);
+        timer = 0f;
+        Refresh();
+    }
+
     /// <summary>パネルを閉じる。</summary>
     public void Hide()
     {
         target = null;
+        targetBrood = null;
         if (panelRoot != null) panelRoot.SetActive(false);
     }
 
     private void Update()
     {
-        if (target == null) return;
+        if (target == null && targetBrood == null) return;
 
         // 毎フレーム文字列を作り直すと無駄なので間引く
         timer -= Time.unscaledDeltaTime;
@@ -67,6 +83,11 @@ public class AntInfoPanel : MonoBehaviour
     /// <summary>今の値で表示を作り直す。</summary>
     public void Refresh()
     {
+        if (targetBrood != null)
+        {
+            RefreshBrood();
+            return;
+        }
         if (target == null) return;
 
         if (titleText != null) titleText.text = AntTexts.Caste(target.Caste);
@@ -74,6 +95,53 @@ public class AntInfoPanel : MonoBehaviour
         if (roleText != null) roleText.text = BuildRoleText();
         if (moodText != null) moodText.text = AntTexts.Mood(target.CurrentMood);
         if (roleGaugeFill != null) roleGaugeFill.fillAmount = Mathf.Clamp01(target.OutdoorTendency);
+
+        // 体の蓄え（脂肪体）。社会胃と違って口移しでは動かない
+        ShowReserve(true);
+        if (reserveText != null) reserveText.text = AntTexts.LabelReserve;
+        if (reserveGaugeFill != null) reserveGaugeFill.fillAmount = Mathf.Clamp01(target.Reserve);
+    }
+
+    /// <summary>子どもの表示を作り直す。</summary>
+    private void RefreshBrood()
+    {
+        BroodItem brood = targetBrood;
+        if (titleText != null) titleText.text = AntTexts.BroodStageName(brood.stage);
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine(AntTexts.HeadingBrood);
+        sb.Append("  ").Append(AntTexts.LabelStage).Append("：").AppendLine(AntTexts.BroodStageName(brood.stage));
+        sb.Append("  ").Append(AntTexts.LabelDaysInStage).Append("：")
+            .AppendLine(AntTexts.AgeInDays(Mathf.FloorToInt(brood.ageInStage)));
+
+        if (brood.stage == BroodStage.Larva)
+        {
+            sb.AppendLine();
+            sb.AppendLine(AntTexts.HeadingNature);
+            sb.Append("  ").Append(AntTexts.LabelLarvaSize).Append("：")
+                .AppendLine((brood.size * 100f).ToString("0") + "%");
+        }
+
+        if (statusText != null) statusText.text = sb.ToString();
+        if (roleText != null) roleText.text = string.Empty;
+        ShowReserve(false);
+        if (roleGaugeFill != null) roleGaugeFill.fillAmount = brood.stage == BroodStage.Larva ? brood.crop : 0f;
+        if (moodText != null) moodText.text = brood.stage == BroodStage.Larva && brood.Hunger > 0.5f
+            ? "お腹をすかせている"
+            : "眠っている";
+    }
+
+    /// <summary>体の蓄えの行を出すかどうか（子どもには出さない）。</summary>
+    private void ShowReserve(bool visible)
+    {
+        if (reserveText != null && reserveText.gameObject.activeSelf != visible)
+            reserveText.gameObject.SetActive(visible);
+        if (reserveGaugeFill == null) return;
+
+        // ゲージは枠ごと出し入れする（枠だけ残ると空の帯に見えるため）
+        Transform frame = reserveGaugeFill.transform.parent != null
+            ? reserveGaugeFill.transform.parent : reserveGaugeFill.transform;
+        if (frame.gameObject.activeSelf != visible) frame.gameObject.SetActive(visible);
     }
 
     /// <summary>「いまの状況」と「性質」の本文を作る。</summary>

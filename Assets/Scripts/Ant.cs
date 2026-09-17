@@ -23,6 +23,8 @@ public class Ant : MonoBehaviour
     [SerializeField] private Colony colony;
     [Tooltip("運び出した土を積む係。未指定ならシーンから探す")]
     [SerializeField] private MoundBuilder mound;
+    [Tooltip("生活環の設定（女王と寿命に使う）。未指定ならシーンから探す")]
+    [SerializeField] private BroodSettings broodSettings;
 
     [Header("移動の刻み")]
     [Tooltip("1回の計算で進む最大距離。1マス(0.2cm)の半分までなら壁をすり抜けない")]
@@ -73,6 +75,10 @@ public class Ant : MonoBehaviour
     // ---- 社会胃と閾値（行動モデル.md 2章・4章・6章）----
     /// <summary>社会胃の中身。1で満腹</summary>
     private float crop = 1f;
+    /// <summary>体の蓄え（脂肪体）。社会胃が空になってから使う。口移しでは分けない</summary>
+    private float reserve;
+    /// <summary>社会胃の初期値が外から指定されたか（羽化した個体）</summary>
+    private bool cropOverridden;
     /// <summary>仲間へ配るために持ち帰っている分</summary>
     private float carryLoad;
     /// <summary>仕事ごとの閾値（腰の重さ）。学習で動く（行動モデル.md 12-2）</summary>
@@ -90,9 +96,12 @@ public class Ant : MonoBehaviour
     private float dumpTimer;
     /// <summary>今掘っているマス</summary>
     private int digCellX, digCellY;
+
+    // ---- 女王（行動モデル.md 13-1）----
+    /// <summary>女王が歩いている残り時間。0 のあいだはその場から動かない</summary>
+    private float queenWalkTimer;
     private float metabolismTimer;
     private float movedSinceMetabolism;
-    private float starveSeconds;
     private float decisionTimer;
     private bool isInNest = true;
     /// <summary>今いる場所の巣の匂いの濃さ（知覚tickで更新）。</summary>
@@ -106,6 +115,15 @@ public class Ant : MonoBehaviour
 
     /// <summary>興奮度。警報フェロモンで上がる（段階6で本格化）。</summary>
     private float alarm;
+
+    // ---- 寿命（行動モデル.md 13-10）----
+    /// <summary>この日齢になったら寿命で死ぬ。女王は死なない（段階5）</summary>
+    private float lifespanDays = float.MaxValue;
+
+    /// <summary>女王か。</summary>
+    public bool IsQueen => caste == AntCaste.Queen;
+    /// <summary>寿命（日）。</summary>
+    public float LifespanDays => lifespanDays;
     private float trailLostTimer;
     private float lastFollowProbability;
     private float circleSign = 1f;
@@ -119,6 +137,8 @@ public class Ant : MonoBehaviour
     public AntCarry Carrying => carrying;
     /// <summary>社会胃の中身（0〜1）。</summary>
     public float Crop => crop;
+    /// <summary>体の蓄え（0〜1）。</summary>
+    public float Reserve => reserve;
     /// <summary>空腹度（0〜1）。社会胃の裏返しで、別には持たない。</summary>
     public float Hunger => 1f - crop;
     /// <summary>仲間へ配るために持ち帰っている分。</summary>
@@ -166,6 +186,16 @@ public class Ant : MonoBehaviour
         {
             if (settings == null) return AntMood.Calm;
 
+            // 女王は専用の文（行動モデル.md 13-9）
+            if (IsQueen)
+            {
+                var queen = GetComponent<Queen>();
+                if (queen != null && queen.JustLaid) return AntMood.QueenLaid;
+                float threshold = broodSettings != null ? broodSettings.queenBegThreshold : 0.4f;
+                if (Hunger > threshold) return AntMood.QueenHungry;
+                return AntMood.QueenCalm;
+            }
+
             if (alarm > settings.moodAlarmThreshold) return AntMood.Alarmed;
             if (Hunger > settings.moodHungryThreshold) return AntMood.Hungry;
             if (trailLostTimer > 0f) return AntMood.TrailLost;
@@ -211,6 +241,8 @@ public class Ant : MonoBehaviour
         if (nestField == null) nestField = FindFirstObjectByType<NestField>();
         if (colony == null) colony = FindFirstObjectByType<Colony>();
         if (mound == null) mound = FindFirstObjectByType<MoundBuilder>();
+        if (broodSettings == null) broodSettings = FindFirstObjectByType<BroodField>() != null
+            ? FindFirstObjectByType<BroodField>().Settings : null;
         clock = FindFirstObjectByType<GameClock>();
         if (clock != null) bornAtElapsedDays = clock.ElapsedDays;
     }
@@ -242,12 +274,22 @@ public class Ant : MonoBehaviour
             decisionTimer = Random.Range(0f, settings.decisionInterval);
 
             // 開始時の社会胃をばらつかせる。全員が同時に空腹になって一斉に出るのを避ける
-            crop = Random.Range(settings.startCropMin, settings.startCropMax);
+            if (!cropOverridden) crop = Random.Range(settings.startCropMin, settings.startCropMax);
+
+            // 体の蓄えは個体ごとにばらつかせる。一斉に尽きるのを避ける
+            reserve = Random.Range(settings.startReserveMin, settings.startReserveMax);
 
             // 若いほど閾値が高い＝外へ出にくい。これが齢間分業になる
             theta[ThetaExplore] = Mathf.Clamp(1f - AgeDays / Mathf.Max(0.0001f, settings.matureDays), 0.15f, 0.95f);
             // 掘削は内勤と外勤の中間なので、日齢では決めず一定値から始める
             theta[ThetaDig] = settings.thetaDigInitial;
+        }
+
+        // 寿命を個体ごとにばらつかせる（女王は段階5では死なない）
+        if (broodSettings != null && !IsQueen)
+        {
+            float variation = broodSettings.lifespanVariation;
+            lifespanDays = broodSettings.workerLifespanDays * Random.Range(1f - variation, 1f + variation);
         }
 
         ApplyTransform(0f);
@@ -336,6 +378,13 @@ public class Ant : MonoBehaviour
     /// <summary>巣の中で休む。奥（匂いの濃いほう）へゆっくり寄りながらうろつく。</summary>
     private void RestInNestStep(float tickTime, bool inside)
     {
+        // 女王は奥の部屋から動かない（行動モデル.md 13-1）
+        if (IsQueen)
+        {
+            QueenRestStep(tickTime);
+            return;
+        }
+
         timeOutside = 0f;
         // 交換中は動かない
         if (sharePartner != null) return;
@@ -344,7 +393,10 @@ public class Ant : MonoBehaviour
         if (TryStartSharing()) return;
 
         // 空腹なら、いちばん近い仲間へ寄っていく（相手の中身は知らない。触れて差があれば流れる）
-        if (Hunger > settings.begThreshold && colony != null)
+        float begThreshold = IsQueen && broodSettings != null
+            ? broodSettings.queenBegThreshold
+            : settings.begThreshold;
+        if (Hunger > begThreshold && colony != null)
         {
             Ant nearest = colony.FindNearestNestmate(this, settings.begSearchRange);
             if (nearest != null)
@@ -360,6 +412,52 @@ public class Ant : MonoBehaviour
         AddWanderNoise(tickTime, settings.wanderSigma);
 
         // 外へ出るかどうかは DecisionStep（反応閾値）が決める
+    }
+
+    /// <summary>
+    /// 女王の過ごし方（行動モデル.md 13-1）。
+    ///
+    /// 女王はふだん奥の部屋で静止している。空腹でも自分から働きアリを探しには行かず、
+    /// その場に空腹の匂い（幼虫と同じ層）を置いて、世話を待つ。
+    /// たまにだけ少し歩き、そのときは巣の匂いの濃い側（奥）へ強く偏る。
+    /// </summary>
+    private void QueenRestStep(float tickTime)
+    {
+        timeOutside = 0f;
+        if (sharePartner != null) return;
+
+        // 触れた相手と差があれば口移しは起きる（働きアリ側は女王を優先する）
+        if (TryStartSharing()) return;
+
+        // 空腹なら、その場に匂いを置く。たどる側は段階5bで作る
+        float begThreshold = broodSettings != null ? broodSettings.queenBegThreshold : settings.begThreshold;
+        if (Hunger > begThreshold) DepositHunger();
+
+        // 歩いている途中なら、奥へ強く寄りながら歩き続ける
+        if (queenWalkTimer > 0f)
+        {
+            queenWalkTimer -= tickTime;
+            float bias = broodSettings != null ? broodSettings.queenNestBias : 1f;
+            SteerAlongNest(tickTime, true, settings.homingBias * bias);
+            AddWanderNoise(tickTime, settings.wanderSigma * 0.3f);
+            return;
+        }
+
+        // 止まっているときに、たまに歩き出す
+        if (broodSettings == null) return;
+        if (Random.value < broodSettings.queenWanderChance)
+            queenWalkTimer = broodSettings.queenWanderSeconds;
+    }
+
+    /// <summary>今いるマスに空腹の匂いを置く（行動モデル.md 13-3 の larvaHunger 層）。</summary>
+    private void DepositHunger()
+    {
+        if (pheromones == null || grid == null) return;
+        int x, y;
+        if (!grid.WorldToCell(position, out x, out y)) return;
+
+        float scale = broodSettings != null ? broodSettings.queenHungerDeposit : 1f;
+        pheromones.DepositAt(x, y, PheromoneLayer.LarvaHunger, Hunger * scale);
     }
 
     // ---- 掘削（行動モデル.md 12章）----
@@ -580,7 +678,10 @@ public class Ant : MonoBehaviour
         float myTotal = crop + carryLoad;
         float otherTotal = other.crop + other.carryLoad;
 
-        if (myTotal - other.crop >= settings.shareThreshold)
+        // 相手が女王なら、差の大きさを問わず流す（女王優先。行動モデル.md 13-1）
+        float threshold = other.IsQueen ? 0f : settings.shareThreshold;
+
+        if (myTotal - other.crop > threshold)
         {
             BeginShare(this, other, (myTotal - other.crop) * 0.5f);
             return true;
@@ -649,7 +750,6 @@ public class Ant : MonoBehaviour
     private void ReceiveShare(float amount)
     {
         crop = Mathf.Clamp01(crop + amount);
-        starveSeconds = 0f;
     }
 
     /// <summary>口移しを終える（両方の状態を戻す）。</summary>
@@ -684,20 +784,59 @@ public class Ant : MonoBehaviour
         bool moving = movedSinceMetabolism > 0.01f;
         movedSinceMetabolism = 0f;
 
-        crop = Mathf.Clamp01(crop - drainPerSecond * elapsed * (moving ? settings.movingMetabolism : 1f));
+        float multiplier = moving ? settings.movingMetabolism : 1f;
+        // 女王は産卵のぶん多く消費する
+        if (IsQueen && broodSettings != null) multiplier *= broodSettings.queenMetabolism;
 
-        if (crop > 0f)
+        // まず社会胃から引く。足りない分は体の蓄えでまかなう（行動モデル.md 4章）
+        float demand = drainPerSecond * elapsed * multiplier;
+        if (crop >= demand)
         {
-            starveSeconds = 0f;
+            crop -= demand;
+        }
+        else
+        {
+            float shortage = demand - crop;
+            crop = 0f;
+            // 足りない分の「時間」を蓄えで払う。蓄えは社会胃より reserveDays/fullToEmptyDays 倍もつ
+            float rate = settings.fullToEmptyDays / Mathf.Max(0.0001f, settings.reserveDays);
+            reserve = Mathf.Max(0f, reserve - shortage * rate);
+        }
+
+        // 社会胃に余りがあれば、少しずつ体の蓄えへ回す
+        FillReserve(elapsed / secondsPerDay);
+
+        // 寿命で死ぬ
+        if (AgeDays >= lifespanDays)
+        {
+            if (colony != null) colony.ReportDeath(this, AntDeathCause.OldAge);
+            Destroy(gameObject);
             return;
         }
 
-        // 空っぽのまま一定の日数が過ぎたら死ぬ（死体の扱いは段階6）
-        starveSeconds += elapsed;
-        if (starveSeconds < settings.starveDays * secondsPerDay) return;
+        // 社会胃も蓄えも尽きたら死ぬ（死体の扱いは段階6）
+        if (crop > 0f || reserve > 0f) return;
 
         if (colony != null) colony.ReportDeath(this, AntDeathCause.Starvation);
         Destroy(gameObject);
+    }
+
+    /// <summary>
+    /// 社会胃の余りを体の蓄えへ移す（行動モデル.md 4章）。
+    /// 口移しで配る分（crop）を減らしすぎないよう、満ちているときだけ回す。
+    /// </summary>
+    private void FillReserve(float elapsedDays)
+    {
+        if (reserve >= 1f) return;
+        if (crop <= settings.reserveFillAbove) return;
+
+        float move = settings.reserveFillPerDay * elapsedDays;
+        move = Mathf.Min(move, crop - settings.reserveFillAbove);
+        move = Mathf.Min(move, 1f - reserve);
+        if (move <= 0f) return;
+
+        crop -= move;
+        reserve += move;
     }
 
     /// <summary>
@@ -710,6 +849,7 @@ public class Ant : MonoBehaviour
         if (decisionTimer > 0f) return;
         decisionTimer = Mathf.Max(0.0001f, settings.decisionInterval);
 
+        if (IsQueen) return;        // 女王は仕事を選ばない。産卵だけをする
         if (task != AntTask.RestInNest) return;
         if (sharePartner != null) return;   // 分け合っている最中は出発しない
 
@@ -831,7 +971,6 @@ public class Ant : MonoBehaviour
         }
         // その場で社会胃を満たし、さらに仲間へ配る分を持って帰る（行動モデル.md 4章）
         crop = 1f;
-        starveSeconds = 0f;
         carryLoad = settings.carryLoad;
 
         carrying = AntCarry.Food;
@@ -950,6 +1089,10 @@ public class Ant : MonoBehaviour
 
     private float MoveStep(float deltaTime)
     {
+        // 女王は歩くと決めたときだけ動く（行動モデル.md 13-1）。
+        // 足場がないときは落ちてほしいので、支えられている間だけ止める
+        if (IsQueen && queenWalkTimer <= 0f && IsSupported(position)) return 0f;
+
         float movedDistance = 0f;
         float remainingTime = deltaTime;
         int steps = 0;
@@ -961,6 +1104,8 @@ public class Ant : MonoBehaviour
             isFalling = !supported;
 
             float speed = supported ? settings.walkSpeed : settings.fallSpeed;
+            // 女王はゆっくり歩く
+            if (IsQueen && supported && broodSettings != null) speed *= broodSettings.queenWalkSpeed;
             if (speed <= 0f) break;
 
             float stepTime = Mathf.Min(remainingTime, maxStepDistance / speed);
@@ -1036,7 +1181,16 @@ public class Ant : MonoBehaviour
         int x, y;
         if (!grid.WorldToCell(worldPosition, out x, out y)) return false;
         if (!grid.IsPassable(x, y)) return false;
-        return grid.HasSolidNeighbor(x, y);
+        if (!grid.HasSolidNeighbor(x, y)) return false;
+
+        // 女王は巣の奥から出ない（行動モデル.md 13-1）
+        if (IsQueen && nestField != null)
+        {
+            float minNest = broodSettings != null ? broodSettings.queenMinNest : settings.nestInside;
+            if (nestField.Sample(worldPosition) < minNest) return false;
+        }
+
+        return true;
     }
 
     private bool IsPassableAt(Vector2 worldPosition)
@@ -1106,6 +1260,19 @@ public class Ant : MonoBehaviour
         SnapToNearestWalkable();
         lastCellIndex = -1;
         ApplyTransform(0f);
+    }
+
+    /// <summary>社会胃を減らす（女王が産卵で使う）。</summary>
+    public void ConsumeCrop(float amount)
+    {
+        crop = Mathf.Clamp01(crop - Mathf.Max(0f, amount));
+    }
+
+    /// <summary>社会胃の初期値を決める（羽化した個体に使う）。</summary>
+    public void SetStartCrop(float value)
+    {
+        crop = Mathf.Clamp01(value);
+        cropOverridden = true;   // Start のランダム初期化で上書きさせない
     }
 
     /// <summary>生まれてからの日数を決める（出すときに個体ごとにばらつかせる）。</summary>

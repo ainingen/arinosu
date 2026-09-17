@@ -32,6 +32,8 @@ public enum AntDeathCause
 {
     /// <summary>餓死</summary>
     Starvation,
+    /// <summary>寿命</summary>
+    OldAge,
 }
 
 /// <summary>アリの種類（カースト）。</summary>
@@ -88,6 +90,12 @@ public enum AntMood
     Digging,
     /// <summary>掘った土を外へ運んでいる</summary>
     CarryingSoil,
+    /// <summary>女王：卵を産んだ直後</summary>
+    QueenLaid,
+    /// <summary>女王：空腹</summary>
+    QueenHungry,
+    /// <summary>女王：それ以外</summary>
+    QueenCalm,
 }
 
 /// <summary>
@@ -108,6 +116,25 @@ public static class AntTexts
     public const string LabelCaste = "種類";
     public const string LabelAge = "日齢";
     public const string LabelRole = "役割の傾向";
+    public const string LabelReserve = "体の蓄え";
+
+    // ---- 子ども（段階5）----
+    public const string LabelStage = "段階";
+    public const string LabelDaysInStage = "この段階に入って";
+    public const string LabelLarvaSize = "育ち具合";
+    public const string HeadingBrood = "子ども";
+
+    /// <summary>子どもの段階の名前。</summary>
+    public static string BroodStageName(BroodStage stage)
+    {
+        switch (stage)
+        {
+            case BroodStage.Egg: return "卵";
+            case BroodStage.Larva: return "幼虫";
+            case BroodStage.Pupa: return "繭（蛹）";
+            default: return "－";
+        }
+    }
 
     public const string RoleIndoor = "内勤寄り";
     public const string RoleOutdoor = "外勤寄り";
@@ -172,6 +199,7 @@ public static class AntTexts
         switch (cause)
         {
             case AntDeathCause.Starvation: return "餓死";
+            case AntDeathCause.OldAge: return "寿命";
             default: return "－";
         }
     }
@@ -204,6 +232,9 @@ public static class AntTexts
             case AntMood.Sharing: return "分け合っている";
             case AntMood.Digging: return "ここを広げる";
             case AntMood.CarryingSoil: return "土を外へ運ぶ";
+            case AntMood.QueenLaid: return "卵を産んだ";
+            case AntMood.QueenHungry: return "お腹がすいた。誰か";
+            case AntMood.QueenCalm: return "静かだ";
             case AntMood.Calm: return "今は穏やかだ";
             default: return string.Empty;
         }

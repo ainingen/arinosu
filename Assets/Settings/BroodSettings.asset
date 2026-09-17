@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbeb97d7cd41c5e438c03ae07c64d2aa, type: 3}
+  m_Name: BroodSettings
+  m_EditorClassIdentifier: Assembly-CSharp::BroodSettings
+  queenBegThreshold: 0.4
+  queenMetabolism: 1.5
+  queenWalkSpeed: 0.3
+  layPerDay: 2
+  layMinCrop: 0.5
+  layCost: 0.05
+  eggDays: 12
+  larvaDays: 20
+  pupaDays: 18
+  stageDurationScale: 1
+  larvaAlwaysFed: 1
+  larvaFullToEmptyDays: 1
+  growthPerCrop: 0.35
+  larvaStarveDays: 2
+  newAdultCrop: 0.5
+  initialEggs: 8
+  initialLarvae: 6
+  initialPupae: 4
+  workerLifespanDays: 180
+  lifespanVariation: 0.2
+  eggSize: 0.22
+  larvaSizeMin: 0.25
+  larvaSizeMax: 0.5
+  pupaSize: 0.45
+  maxDrawnPerCell: 4

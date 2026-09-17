@@ -58,6 +58,9 @@ public class FoodSpawner : MonoBehaviour
 
     private void Start()
     {
+        // 「乾いて消えた数」はプレイのたびに数え直す（静的な数え上げなので明示的に戻す）
+        FoodSource.ResetExpiredCount();
+
         if (settings == null || foodPrefab == null) return;
 
         // 入口の位置が決まっていないと、入口の近くに餌を置いてしまう

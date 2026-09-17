@@ -48,8 +48,12 @@ MonoBehaviour:
   startCropMax: 1
   fullToEmptyDays: 2
   movingMetabolism: 1.5
-  starveDays: 1
   carryLoad: 1
+  reserveFillAbove: 0.7
+  reserveFillPerDay: 0.5
+  reserveDays: 14
+  startReserveMin: 0.3
+  startReserveMax: 0.8
   contactRange: 0.8
   shareThreshold: 0.2
   shareSeconds: 2
@@ -87,13 +91,17 @@ MonoBehaviour:
   moundMaxRoll: 8
   entranceKeepClear: 2
   dumpGiveUpSeconds: 20
-  foodPerDay: 2
-  foodAmountMin: 30
-  foodAmountMax: 120
+  larvaHungerHalfLife: 10
+  larvaHungerDiffusion: 0.05
+  larvaHungerMax: 10
+  foodPerDay: 4
+  foodAmountMin: 10
+  foodAmountMax: 30
+  foodLifetimeDays: 2
   foodMinDistanceFromEntrance: 5
   foodMinDiameter: 0.8
   foodMaxDiameter: 1.6
   initialFoodCount: 1
-  maxFoodSources: 6
+  maxFoodSources: 10
   overlayRefreshInterval: 0.25
   debugPaintAmount: 2

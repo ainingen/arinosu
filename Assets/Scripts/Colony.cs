@@ -265,6 +265,7 @@ public class Colony : MonoBehaviour
             + " 直前の仕事=" + AntTexts.Task(ant.CurrentTask)
             + " θ[Explore]=" + ant.ExploreThreshold.ToString("0.00")
             + " θ[Dig]=" + ant.DigThreshold.ToString("0.00")
+            + " 蓄え=" + ant.Reserve.ToString("0.00")
             + " （通算 " + DeathCount + "匹目）");
     }
 

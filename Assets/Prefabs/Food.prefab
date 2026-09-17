@@ -139,7 +139,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FoodSource
   spriteRenderer: {fileID: 228089195580082385}
   amountLabel: {fileID: 8381578622105972778}
-  fullAmount: 8
+  fullAmount: 30
   fallbackMinDiameter: 0.8
   fallbackMaxDiameter: 1.6
   labelMargin: 0.18

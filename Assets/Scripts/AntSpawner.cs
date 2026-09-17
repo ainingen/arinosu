@@ -12,6 +12,10 @@ public class AntSpawner : MonoBehaviour
     [SerializeField] private NestField nestField;
     [SerializeField] private AntSettings settings;
     [SerializeField] private Ant antPrefab;
+    [Tooltip("女王のプレハブ（段階5）")]
+    [SerializeField] private Ant queenPrefab;
+    [SerializeField] private BroodSettings broodSettings;
+    [SerializeField] private BroodField broodField;
     [Tooltip("出したアリをまとめる親。未指定ならこの GameObject の下")]
     [SerializeField] private Transform antParent;
 
@@ -38,6 +42,7 @@ public class AntSpawner : MonoBehaviour
     {
         if (grid == null) grid = FindFirstObjectByType<SoilGrid>();
         if (nestField == null) nestField = FindFirstObjectByType<NestField>();
+        if (broodField == null) broodField = FindFirstObjectByType<BroodField>();
         if (antParent == null) antParent = transform;
     }
 
@@ -53,6 +58,7 @@ public class AntSpawner : MonoBehaviour
         if (nestField != null) nestField.EnsureBuilt();
 
         for (int i = 0; i < workerCount; i++) SpawnOne();
+        SpawnQueenAndBrood();
     }
 
     private void Update()
@@ -68,6 +74,77 @@ public class AntSpawner : MonoBehaviour
             added++;
         }
         Debug.Log("デバッグ：アリを " + added + "匹 増やした（合計 " + Ant.All.Count + "匹）");
+    }
+
+    /// <summary>
+    /// 女王1匹と、開始時の子どもを巣のいちばん奥に置く（行動モデル.md 13-1）。
+    /// </summary>
+    private void SpawnQueenAndBrood()
+    {
+        if (broodSettings == null || grid == null) return;
+
+        // 巣のいちばん奥（巣の匂いがもっとも濃い空洞）を探す
+        int deepX = -1, deepY = -1;
+        float best = -1f;
+        for (int y = 0; y < grid.SurfaceRow; y++)
+        {
+            for (int x = 0; x < grid.Width; x++)
+            {
+                if (grid.GetCell(x, y) != CellType.Cavity) continue;
+                if (!grid.HasSolidNeighbor(x, y)) continue;
+                float value = nestField != null ? nestField.GetAt(x, y) : 1f;
+                if (value <= best) continue;
+                best = value;
+                deepX = x;
+                deepY = y;
+            }
+        }
+        if (deepX < 0) return;
+
+        Vector2 deep = grid.CellToWorld(deepX, deepY);
+
+        if (queenPrefab != null)
+        {
+            Ant queen = Instantiate(queenPrefab, deep, Quaternion.identity, antParent);
+            queen.name = "Queen";
+        }
+
+        if (broodField == null) return;
+        PlaceBroodAround(deepX, deepY, BroodStage.Egg, broodSettings.initialEggs);
+        PlaceBroodAround(deepX, deepY, BroodStage.Larva, broodSettings.initialLarvae);
+        PlaceBroodAround(deepX, deepY, BroodStage.Pupa, broodSettings.initialPupae);
+    }
+
+    /// <summary>巣の奥のまわりの空洞に子どもを散らして置く。</summary>
+    private void PlaceBroodAround(int centerX, int centerY, BroodStage stage, int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            int x = centerX, y = centerY;
+            for (int attempt = 0; attempt < 20; attempt++)
+            {
+                int tx = centerX + Random.Range(-3, 4);
+                int ty = centerY + Random.Range(-3, 4);
+                if (grid.GetCell(tx, ty) != CellType.Cavity) continue;
+                x = tx; y = ty;
+                break;
+            }
+            broodField.Add(stage, x, y);
+        }
+    }
+
+    /// <summary>
+    /// 指定した場所に働きアリを1匹出す（羽化に使う）。
+    /// 巣の中の歩ける場所へは Ant 側が自分で寄せる。
+    /// </summary>
+    public Ant SpawnAdult(Vector2 position, float ageDays, float crop)
+    {
+        if (antPrefab == null) return null;
+        Ant ant = Instantiate(antPrefab, position, Quaternion.identity, antParent);
+        ant.SetStartAge(ageDays);
+        ant.SetStartCrop(crop);
+        ant.name = "Ant";
+        return ant;
     }
 
     /// <summary>働きアリを1匹、巣の中に出す。</summary>
