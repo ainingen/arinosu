@@ -248,6 +248,20 @@ public class Ant : MonoBehaviour
             if (!grid.WorldToCell(position, out x, out y)) return AntPlace.Surface;
             if (y >= grid.SurfaceRow) return AntPlace.Surface;
 
+            // 決め打ちの部屋は作らない。いま周りに何があるかで呼び名を決める（13-7）
+            if (broodSettings != null)
+            {
+                float radius = broodSettings.roomSenseRadius;
+
+                if (colony != null && colony.Queen != null
+                    && (colony.Queen.Position - position).sqrMagnitude <= radius * radius)
+                    return AntPlace.QueenRoom;
+
+                if (broodField != null
+                    && broodField.CountWithin(position, radius) >= broodSettings.roomBroodMin)
+                    return AntPlace.Nursery;
+            }
+
             int open = 0;
             for (int dy = -placeSampleRadius; dy <= placeSampleRadius; dy++)
             {
@@ -590,11 +604,45 @@ public class Ant : MonoBehaviour
         float probability = settings.digBase + settings.digCrowdGain * crowd;
         if (marker > 0f) probability += settings.digMarkerGain * (marker / markerMax);
 
+        // 子どもの塊のそばと女王のまわりは掘り広げられ、膨らみ（部屋）になる（13-7）
+        probability += settings.digBroodGain * BroodSmellAround(candidateX, candidateY);
+        probability += settings.digQueenGain * (NearQueen(candidateX, candidateY) ? 1f : 0f);
+
         if (Random.value >= probability) return;
 
         digCellX = candidateX;
         digCellY = candidateY;
         digTimer = settings.digSeconds;
+    }
+
+    /// <summary>
+    /// その土のマスに隣り合う空洞の、子どもの匂いの最大値（0〜1に正規化）。
+    /// 子どもの塊のそばほど掘られやすくなる（行動モデル.md 13-7）。
+    /// </summary>
+    private float BroodSmellAround(int cellX, int cellY)
+    {
+        if (pheromones == null || grid == null) return 0f;
+
+        float max = 0f;
+        for (int i = 0; i < 4; i++)
+        {
+            int dx = i == 0 ? 1 : (i == 1 ? -1 : 0);
+            int dy = i == 2 ? 1 : (i == 3 ? -1 : 0);
+            if (!grid.IsPassable(cellX + dx, cellY + dy)) continue;
+            float value = pheromones.GetAt(cellX + dx, cellY + dy, PheromoneLayer.Brood);
+            if (value > max) max = value;
+        }
+
+        float scale = Mathf.Max(0.0001f, pheromones.GetMax(PheromoneLayer.Brood));
+        return Mathf.Clamp01(max / scale);
+    }
+
+    /// <summary>その土のマスが女王のそばか（行動モデル.md 13-7）。</summary>
+    private bool NearQueen(int cellX, int cellY)
+    {
+        if (colony == null || colony.Queen == null || grid == null) return false;
+        float radius = settings.queenRoomRadius;
+        return (grid.CellToWorld(cellX, cellY) - colony.Queen.Position).sqrMagnitude <= radius * radius;
     }
 
     /// <summary>

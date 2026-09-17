@@ -81,7 +81,10 @@ MonoBehaviour:
   ageDrift: 0.01
   digBase: 0.002
   digMarkerGain: 0.3
-  digCrowdGain: 0.005
+  digCrowdGain: 0
+  digBroodGain: 0.05
+  digQueenGain: 0.05
+  queenRoomRadius: 2
   digCrowdRadius: 1.5
   digCrowdFull: 5
   digSeconds: 3

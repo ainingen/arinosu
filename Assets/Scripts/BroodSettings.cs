@@ -117,6 +117,12 @@ public class BroodSettings : ScriptableObject
     [Tooltip("寿命のばらつき（±の割合）")]
     [Range(0f, 1f)] public float lifespanVariation = 0.2f;
 
+    [Header("部屋の名前（行動モデル.md 13-7。表示だけ）")]
+    [Tooltip("まわりを見る範囲（cm）")]
+    public float roomSenseRadius = 2f;
+    [Tooltip("この数以上の子どもがあれば「育児室」と呼ぶ")]
+    public int roomBroodMin = 5;
+
     [Header("見た目")]
     [Tooltip("1マスに重ねて描く最大数。大きさは素材の実寸（PPU）で決まる")]
     public int maxDrawnPerCell = 4;

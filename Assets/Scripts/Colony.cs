@@ -47,6 +47,8 @@ public class Colony : MonoBehaviour
     public float DigStimulus { get; private set; }
     /// <summary>育児の刺激 S_nurse（行動モデル.md 13-4）。</summary>
     public float NurseStimulus { get; private set; }
+    /// <summary>女王（いなければ null）。部屋の判定で毎回探さずに済むよう控えておく。</summary>
+    public Ant Queen { get; private set; }
     /// <summary>混雑度（コロニーの総個体数 ÷ 空洞のマス数）。出入りでは変わらない。</summary>
     public float Crowding { get; private set; }
     /// <summary>巣の空洞のマス数。</summary>
@@ -191,6 +193,14 @@ public class Colony : MonoBehaviour
         int outside = 0;
         float hungerSum = 0f;
         float thetaSum = 0f;
+
+        if (Queen == null)
+        {
+            for (int i = 0; i < ants.Count; i++)
+            {
+                if (ants[i] != null && ants[i].IsQueen) { Queen = ants[i]; break; }
+            }
+        }
 
         for (int i = 0; i < ants.Count; i++)
         {

@@ -320,6 +320,24 @@ public class BroodField : MonoBehaviour
         return best;
     }
 
+    /// <summary>
+    /// その場所のまわり（半径 range cm）にある子どもの数。部屋の名前に使う（13-7）。
+    /// </summary>
+    public int CountWithin(Vector2 worldPosition, float range)
+    {
+        if (grid == null) return 0;
+        float rangeSq = range * range;
+        int count = 0;
+        for (int i = 0; i < items.Count; i++)
+        {
+            BroodItem item = items[i];
+            if (item.carriedBy != null) continue;
+            if ((grid.CellToWorld(item.cellX, item.cellY) - worldPosition).sqrMagnitude > rangeSq) continue;
+            count++;
+        }
+        return count;
+    }
+
     /// <summary>その子どもを食べる（取り除く）。餓死とは別に数える。</summary>
     public void Consume(BroodItem item)
     {

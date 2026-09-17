@@ -166,8 +166,14 @@ public class AntSettings : ScriptableObject
     [Range(0f, 1f)] public float digBase = 0.02f;
     [Tooltip("掘削跡の匂いが掘る確率を上げる強さ")]
     public float digMarkerGain = 0.08f;
-    [Tooltip("まわりの混み具合が掘る確率を上げる強さ")]
-    public float digCrowdGain = 0.08f;
+    [Tooltip("まわりの混み具合が掘る確率を上げる強さ。段階5cで 0 にし、下の2項に置き換えた")]
+    public float digCrowdGain = 0f;
+    [Tooltip("子どもの塊のそばを掘り広げる強さ（行動モデル.md 13-7）")]
+    public float digBroodGain = 0.05f;
+    [Tooltip("女王のまわりを掘り広げる強さ")]
+    public float digQueenGain = 0.05f;
+    [Tooltip("女王のまわりとみなす距離（cm）")]
+    public float queenRoomRadius = 2f;
     [Tooltip("まわりの混み具合を数える範囲（cm）")]
     public float digCrowdRadius = 1.5f;
     [Tooltip("この匹数で混み具合が最大（1.0）になる")]

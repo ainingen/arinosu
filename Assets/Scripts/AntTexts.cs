@@ -50,6 +50,10 @@ public enum AntPlace
     Surface,
     Tunnel,
     Chamber,
+    /// <summary>女王が近くにいる（行動モデル.md 13-7）</summary>
+    QueenRoom,
+    /// <summary>子どもが集まっている</summary>
+    Nursery,
 }
 
 /// <summary>運んでいるもの。</summary>
@@ -183,6 +187,8 @@ public static class AntTexts
             case AntPlace.Surface: return "地表";
             case AntPlace.Tunnel: return "トンネル";
             case AntPlace.Chamber: return "部屋";
+            case AntPlace.QueenRoom: return "女王の部屋";
+            case AntPlace.Nursery: return "育児室";
             default: return "－";
         }
     }
