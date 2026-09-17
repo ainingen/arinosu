@@ -7,6 +7,8 @@ public enum FoodPlacementResult
     Ok,
     /// <summary>世界の外</summary>
     OutsideWorld,
+    /// <summary>地表の餌が上限に達している</summary>
+    AtFoodLimit,
     /// <summary>巣の入口に近すぎる</summary>
     TooCloseToEntrance,
     /// <summary>その列に地面がない</summary>
@@ -31,12 +33,20 @@ public class FoodSpawner : MonoBehaviour
     [Tooltip("出した餌をまとめる親。未指定ならこの GameObject の下")]
     [SerializeField] private Transform foodParent;
 
-    [Tooltip("同時に置いておける数の上限（負荷よけ）")]
-    [SerializeField] private int maxFoodCount = 12;
     [Tooltip("置ける場所を探す試行回数")]
     [SerializeField] private int placementTries = 30;
 
     private double nextSpawnDay;
+
+    /// <summary>地表の餌が上限に達しているか。</summary>
+    public bool IsAtFoodLimit
+    {
+        get
+        {
+            int limit = settings != null ? settings.maxFoodSources : int.MaxValue;
+            return FoodSource.All.Count >= limit;
+        }
+    }
 
     private void Awake()
     {
@@ -62,7 +72,8 @@ public class FoodSpawner : MonoBehaviour
         if (settings == null || clock == null || foodPrefab == null) return;
         if (clock.ElapsedDays < nextSpawnDay) return;
 
-        if (FoodSource.All.Count < maxFoodCount) SpawnOne();
+        // 上限に達しているあいだは出さない（食べきれない餌が地表に積み上がるのを防ぐ）
+        if (!IsAtFoodLimit) SpawnOne();
         ScheduleNext();
     }
 
@@ -110,6 +121,12 @@ public class FoodSpawner : MonoBehaviour
         if (grid == null || foodPrefab == null || settings == null)
         {
             result = FoodPlacementResult.NotReady;
+            return null;
+        }
+
+        if (IsAtFoodLimit)
+        {
+            result = FoodPlacementResult.AtFoodLimit;
             return null;
         }
 

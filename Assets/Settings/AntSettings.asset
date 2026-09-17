@@ -84,6 +84,9 @@ MonoBehaviour:
   depositDig: 3
   dumpMinDistance: 5
   moundMaxStep: 2
+  moundMaxRoll: 8
+  entranceKeepClear: 2
+  dumpGiveUpSeconds: 20
   foodPerDay: 2
   foodAmountMin: 30
   foodAmountMax: 120
@@ -91,5 +94,6 @@ MonoBehaviour:
   foodMinDiameter: 0.8
   foodMaxDiameter: 1.6
   initialFoodCount: 1
+  maxFoodSources: 6
   overlayRefreshInterval: 0.25
   debugPaintAmount: 2

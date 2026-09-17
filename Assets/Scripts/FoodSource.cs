@@ -71,6 +71,12 @@ public class FoodSource : MonoBehaviour
         ApplyLook();
     }
 
+    /// <summary>地面の上へ置き直す（塚に埋まったときに押し上げるのに使う）。</summary>
+    public void PlaceOnGround(Vector2 groundSurface)
+    {
+        transform.position = new Vector3(groundSurface.x, groundSurface.y, transform.position.z);
+    }
+
     /// <summary>アリが1匹分食べる。食べられたら true。</summary>
     public bool TakeOne()
     {

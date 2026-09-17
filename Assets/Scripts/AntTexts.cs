@@ -27,6 +27,13 @@ public enum AntTask
     Guard,
 }
 
+/// <summary>アリが死んだ理由。段階6で寒さ・溺れ・崩落が加わる。</summary>
+public enum AntDeathCause
+{
+    /// <summary>餓死</summary>
+    Starvation,
+}
+
 /// <summary>アリの種類（カースト）。</summary>
 public enum AntCaste
 {
@@ -155,6 +162,16 @@ public static class AntTexts
             case AntCarry.Egg: return "卵";
             case AntCarry.Larva: return "幼虫";
             case AntCarry.Corpse: return "仲間の死骸";
+            default: return "－";
+        }
+    }
+
+    /// <summary>死んだ理由の名前。</summary>
+    public static string DeathCause(AntDeathCause cause)
+    {
+        switch (cause)
+        {
+            case AntDeathCause.Starvation: return "餓死";
             default: return "－";
         }
     }

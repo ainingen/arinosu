@@ -28,6 +28,8 @@ public class DebugPaintTool : MonoBehaviour
     [SerializeField] private string foodTooCloseMessage = "巣の入口に近すぎます（{0}cm以上離してください）";
     [Tooltip("その列に地面がないときの文")]
     [SerializeField] private string foodNoGroundMessage = "ここには地面がありません";
+    [Tooltip("地表の餌が上限に達しているときの文")]
+    [SerializeField] private string foodAtLimitMessage = "地表の餌が上限に達しています";
     [Tooltip("世界の外をクリックしたときの文")]
     [SerializeField] private string foodOutsideMessage = "世界の外には置けません";
     [Tooltip("準備ができていないときの文")]
@@ -171,6 +173,8 @@ public class DebugPaintTool : MonoBehaviour
                 return string.Format(foodTooCloseMessage, distance.ToString("0.#"));
             case FoodPlacementResult.NoGround:
                 return foodNoGroundMessage;
+            case FoodPlacementResult.AtFoodLimit:
+                return foodAtLimitMessage;
             case FoodPlacementResult.OutsideWorld:
                 return foodOutsideMessage;
             default:

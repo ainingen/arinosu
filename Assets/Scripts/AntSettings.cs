@@ -170,11 +170,17 @@ public class AntSettings : ScriptableObject
     [Tooltip("掘ったマス1つに置く量")]
     public float depositDig = 3f;
 
-    [Header("掘削：土の運び出しと塚（段階4bで使う）")]
+    [Header("掘削：土の運び出しと塚（行動モデル.md 12-5）")]
     [Tooltip("入口からこれだけ離れてから土を置く（cm）")]
     public float dumpMinDistance = 5f;
-    [Tooltip("隣の列よりこのマス数以上高くなったら、低いほうへ崩す")]
+    [Tooltip("隣の列よりこのマス数以上高くなったら、低いほうへ1粒転がす")]
     public int moundMaxStep = 2;
+    [Tooltip("1粒が続けて転がれる回数の上限")]
+    public int moundMaxRoll = 8;
+    [Tooltip("入口の列の左右、このマス数ぶんには積まない")]
+    public int entranceKeepClear = 2;
+    [Tooltip("外に出てからこれだけ経っても置けなければ、その場で捨てる（秒）")]
+    public float dumpGiveUpSeconds = 20f;
 
     [Header("餌")]
     [Tooltip("1日あたりに現れる餌の平均個数")]
@@ -190,6 +196,8 @@ public class AntSettings : ScriptableObject
     public float foodMaxDiameter = 1.6f;
     [Tooltip("開始時に置いておく餌の数")]
     public int initialFoodCount = 1;
+    [Tooltip("地表に同時に置ける餌の数。これに達しているあいだは新しい餌を出さない")]
+    public int maxFoodSources = 6;
 
     [Header("デバッグ表示")]
     [Tooltip("重ね表示を作り直す間隔（秒）")]

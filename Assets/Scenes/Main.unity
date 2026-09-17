@@ -212,6 +212,7 @@ GameObject:
   - component: {fileID: 175284909}
   - component: {fileID: 175284914}
   - component: {fileID: 175284913}
+  - component: {fileID: 175284915}
   m_Layer: 0
   m_Name: World
   m_TagString: Untagged
@@ -367,6 +368,22 @@ MonoBehaviour:
   grid: {fileID: 175284910}
   settings: {fileID: 11400000, guid: fcc1c9c390b2f5a4492c6854659d3404, type: 2}
   minConcentration: 0.001
+--- !u!114 &175284915
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 175284908}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ed0144597d0d7d42bc9a99de8d31510, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MoundBuilder
+  grid: {fileID: 175284910}
+  nestField: {fileID: 175284913}
+  settings: {fileID: 11400000, guid: fcc1c9c390b2f5a4492c6854659d3404, type: 2}
+  colony: {fileID: 750776817}
 --- !u!1 &335418266
 GameObject:
   m_ObjectHideFlags: 0
@@ -556,6 +573,7 @@ MonoBehaviour:
   foodModeMessage: "\u990C\u7F6E\u304D\u30E2\u30FC\u30C9\uFF08\u30AF\u30EA\u30C3\u30AF\u3067\u8A2D\u7F6E\u30FBShift+5\u3067\u89E3\u9664\uFF09"
   foodTooCloseMessage: "\u5DE3\u306E\u5165\u53E3\u306B\u8FD1\u3059\u304E\u307E\u3059\uFF08{0}cm\u4EE5\u4E0A\u96E2\u3057\u3066\u304F\u3060\u3055\u3044\uFF09"
   foodNoGroundMessage: "\u3053\u3053\u306B\u306F\u5730\u9762\u304C\u3042\u308A\u307E\u305B\u3093"
+  foodAtLimitMessage: "\u5730\u8868\u306E\u990C\u304C\u4E0A\u9650\u306B\u9054\u3057\u3066\u3044\u307E\u3059"
   foodOutsideMessage: "\u4E16\u754C\u306E\u5916\u306B\u306F\u7F6E\u3051\u307E\u305B\u3093"
   foodNotReadyMessage: "\u307E\u3060\u990C\u3092\u7F6E\u3051\u307E\u305B\u3093"
   messageSeconds: 2.5
@@ -579,7 +597,6 @@ MonoBehaviour:
   settings: {fileID: 11400000, guid: fcc1c9c390b2f5a4492c6854659d3404, type: 2}
   foodPrefab: {fileID: 1481708733023964260, guid: be4e017928a2a464bbe7c09c4c9b5d9b, type: 3}
   foodParent: {fileID: 0}
-  maxFoodCount: 12
   placementTries: 30
 --- !u!114 &750776816
 MonoBehaviour:
@@ -1545,6 +1562,7 @@ MonoBehaviour:
   selector: {fileID: 750776813}
   trailColor: {r: 0.3, g: 1, b: 0.4, a: 1}
   nestColor: {r: 0.4, g: 0.7, b: 1, a: 1}
+  digColor: {r: 1, g: 0.55, b: 0.2, a: 1}
   overlayAlpha: 0.8
   sortingOrder: -5
   dotSprite: {fileID: 21300000, guid: a31a3a75f5944254ba5af423a54c9c46, type: 3}

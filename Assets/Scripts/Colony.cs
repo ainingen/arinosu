@@ -49,6 +49,23 @@ public class Colony : MonoBehaviour
     public int CavityCells { get; private set; }
     /// <summary>今の個体数に対する、巣の広さの目標（マス数）。</summary>
     public int TargetCavityCells { get; private set; }
+    /// <summary>始まってから死んだ数の合計。</summary>
+    public int DeathCount { get; private set; }
+
+    // ---- 土の出入り（行動モデル.md 12-5）----
+    /// <summary>掘ったマス数の合計。</summary>
+    public int DugCells { get; private set; }
+    /// <summary>塚に置いたマス数の合計。</summary>
+    public int MoundCells { get; private set; }
+    /// <summary>置き場が見つからず捨てた回数。</summary>
+    public int DiscardedSoil { get; private set; }
+
+    /// <summary>土を1粒掘った。</summary>
+    public void ReportDug() { DugCells++; }
+    /// <summary>土を1粒、塚に置いた。</summary>
+    public void ReportMound() { MoundCells++; }
+    /// <summary>土を1粒捨てた。</summary>
+    public void ReportDiscard() { DiscardedSoil++; }
 
     private int cavityVersion = -1;
 
@@ -228,6 +245,27 @@ public class Colony : MonoBehaviour
         float range = settings != null ? Mathf.Clamp(settings.digShortfallRange, 0.05f, 1f) : 0.5f;
         float shortfall = TargetCavityCells - CavityCells;
         DigStimulus = Mathf.Clamp01(shortfall / (TargetCavityCells * range));
+    }
+
+    /// <summary>
+    /// アリが死んだことを記録し、Console に1行で残す。
+    /// どこで、何をしていた個体が、どんな腰の重さで死んだのかを後から追えるようにする。
+    /// </summary>
+    public void ReportDeath(Ant ant, AntDeathCause cause)
+    {
+        DeathCount++;
+        if (ant == null) return;
+
+        var clock = FindFirstObjectByType<GameClock>();
+        string day = clock != null ? clock.ElapsedDays.ToString("0.0") : "?";
+        string place = ant.IsInNest ? "巣の中" : "地表";
+
+        Debug.Log("死亡：" + day + "日目 " + AntTexts.DeathCause(cause)
+            + " 場所=" + place
+            + " 直前の仕事=" + AntTexts.Task(ant.CurrentTask)
+            + " θ[Explore]=" + ant.ExploreThreshold.ToString("0.00")
+            + " θ[Dig]=" + ant.DigThreshold.ToString("0.00")
+            + " （通算 " + DeathCount + "匹目）");
     }
 
     /// <summary>巣の空洞のマス数を数える。地形が変わったときだけ。</summary>

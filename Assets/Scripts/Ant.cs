@@ -21,6 +21,8 @@ public class Ant : MonoBehaviour
     [SerializeField] private NestField nestField;
     [Tooltip("コロニー全体の値（採餌刺激）。未指定ならシーンから探す")]
     [SerializeField] private Colony colony;
+    [Tooltip("運び出した土を積む係。未指定ならシーンから探す")]
+    [SerializeField] private MoundBuilder mound;
 
     [Header("移動の刻み")]
     [Tooltip("1回の計算で進む最大距離。1マス(0.2cm)の半分までなら壁をすり抜けない")]
@@ -84,6 +86,8 @@ public class Ant : MonoBehaviour
     private float digTimer;
     /// <summary>掘る場所を探して歩いている時間。長すぎたら巣の仕事に戻る</summary>
     private float digSearchTimer;
+    /// <summary>土を持って外に出てからの時間。長すぎたら捨てる</summary>
+    private float dumpTimer;
     /// <summary>今掘っているマス</summary>
     private int digCellX, digCellY;
     private float metabolismTimer;
@@ -206,6 +210,7 @@ public class Ant : MonoBehaviour
         if (pheromones == null) pheromones = FindFirstObjectByType<PheromoneField>();
         if (nestField == null) nestField = FindFirstObjectByType<NestField>();
         if (colony == null) colony = FindFirstObjectByType<Colony>();
+        if (mound == null) mound = FindFirstObjectByType<MoundBuilder>();
         clock = FindFirstObjectByType<GameClock>();
         if (clock != null) bornAtElapsedDays = clock.ElapsedDays;
     }
@@ -318,6 +323,9 @@ public class Ant : MonoBehaviour
                 break;
             case AntTask.Dig:
                 DigStep(tickTime, inside);
+                break;
+            case AntTask.CarrySoilOut:
+                CarrySoilOutStep(tickTime, inside);
                 break;
             default:
                 task = AntTask.RestInNest;
@@ -494,15 +502,68 @@ public class Ant : MonoBehaviour
             pheromones.DepositAt(digCellX, digCellY, PheromoneLayer.Dig, settings.depositDig);
         }
 
-        // 段階4bでは、ここで土を持って CarrySoilOut へ移る。
-        // 段階4aは掘るところまでなので、土はその場で消える
-        carrying = AntCarry.None;
+        if (colony != null) colony.ReportDug();
 
-        // 1粒掘ったら巣の中の仕事に戻る。
-        // こうしないと、一度 Dig になったアリが永久に掘り続けてしまい、
-        // 混雑が解消しても掘削が止まらなくなる（反応閾値モデルの外に出てしまう）
-        task = AntTask.RestInNest;
+        // 掘った土を1粒持って、外へ運び出す（行動モデル.md 12-5）
+        carrying = AntCarry.Soil;
+        task = AntTask.CarrySoilOut;
         digSearchTimer = 0f;
+        dumpTimer = 0f;
+    }
+
+    // ---- 土の運び出しと塚（行動モデル.md 12-5）----
+
+    /// <summary>
+    /// 掘った土を外へ運び出す。
+    /// 巣の匂いの勾配を下って入口を出て、入口から離れたところで地表に積む。
+    /// 置けなければ歩いて別の場所で試し、それでも駄目なら捨てる。
+    /// </summary>
+    private void CarrySoilOutStep(float tickTime, bool inside)
+    {
+        if (inside)
+        {
+            // まだ巣の中：匂いの薄いほう（＝入口）へ向かう
+            SteerAlongNest(tickTime, false, settings.turnGain);
+            AddWanderNoise(tickTime, settings.wanderSigma * 0.5f);
+            return;
+        }
+
+        dumpTimer += tickTime;
+
+        // 入口から十分離れていれば、その場に積んでみる
+        bool farEnough = nestField == null || !nestField.HasEntrance
+            || Mathf.Abs(position.x - nestField.EntranceWorld.x) >= settings.dumpMinDistance;
+
+        if (farEnough && mound != null)
+        {
+            MoundPlacementResult placement;
+            if (mound.TryPlaceSoil(position, out placement))
+            {
+                FinishCarryingSoil();
+                return;
+            }
+        }
+
+        // 置けなかった：歩いて別の場所を探す
+        if (dumpTimer > settings.dumpGiveUpSeconds)
+        {
+            // 諦めてその場で捨てる
+            if (colony != null) colony.ReportDiscard();
+            FinishCarryingSoil();
+            return;
+        }
+
+        // 入口から離れる向き（巣の匂いが薄くなるほう）へ歩く
+        SteerAlongNest(tickTime, false, settings.homingBias);
+        AddWanderNoise(tickTime, settings.wanderSigma);
+    }
+
+    /// <summary>土を手放して巣の仕事に戻る。</summary>
+    private void FinishCarryingSoil()
+    {
+        carrying = AntCarry.None;
+        task = AntTask.RestInNest;
+        dumpTimer = 0f;
     }
 
     // ---- 口移し（行動モデル.md 4章）----
@@ -633,7 +694,10 @@ public class Ant : MonoBehaviour
 
         // 空っぽのまま一定の日数が過ぎたら死ぬ（死体の扱いは段階6）
         starveSeconds += elapsed;
-        if (starveSeconds >= settings.starveDays * secondsPerDay) Destroy(gameObject);
+        if (starveSeconds < settings.starveDays * secondsPerDay) return;
+
+        if (colony != null) colony.ReportDeath(this, AntDeathCause.Starvation);
+        Destroy(gameObject);
     }
 
     /// <summary>

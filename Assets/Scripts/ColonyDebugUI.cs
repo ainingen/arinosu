@@ -68,7 +68,8 @@ public class ColonyDebugUI : MonoBehaviour
 
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("fps " + smoothedFps.ToString("0") + "（1フレーム " + (smoothedFps > 0f ? (1000f / smoothedFps).ToString("0.0") : "-") + "ms）／速さ ×" + Time.timeScale.ToString("0.##"));
-        sb.AppendLine("アリ " + total + "匹（巣 " + colony.AntsInNest + " / 外 " + colony.AntsOutside + "）");
+        sb.AppendLine("アリ " + total + "匹（巣 " + colony.AntsInNest + " / 外 " + colony.AntsOutside
+            + "）／これまでの死亡 " + colony.DeathCount + "匹");
         sb.AppendLine("採餌の刺激 S＝" + colony.ForageStimulus.ToString("0.00"));
         sb.AppendLine("　巣の空腹の平均＝" + colony.NestHungerAverage.ToString("0.00"));
         sb.AppendLine("　入口の道しるべ＝" + colony.EntranceTrail.ToString("0.0"));
@@ -82,8 +83,10 @@ public class ColonyDebugUI : MonoBehaviour
             if (ant != null && ant.CurrentTask == AntTask.Dig) digging++;
         }
         sb.AppendLine("掘る刺激 S_dig＝" + colony.DigStimulus.ToString("0.00"));
-        sb.Append("　巣の空洞＝" + colony.CavityCells + " / 目標 " + colony.TargetCavityCells + "マス"
+        sb.AppendLine("　巣の空洞＝" + colony.CavityCells + " / 目標 " + colony.TargetCavityCells + "マス"
             + "／掘っている＝" + digging + "匹");
+        sb.Append("土：掘った " + colony.DugCells + "／塚に置いた " + colony.MoundCells
+            + "／捨てた " + colony.DiscardedSoil);
         return sb.ToString();
     }
 }
