@@ -270,7 +270,14 @@ public class Colony : MonoBehaviour
         Crowding = CavityCells > 0 ? (float)totalAnts / CavityCells : 0f;
 
         float cellsPerAnt = settings != null ? Mathf.Max(0.0001f, settings.targetCellsPerAnt) : 6f;
-        TargetCavityCells = Mathf.RoundToInt(totalAnts * cellsPerAnt);
+
+        // 子どもも場所を取る。幼虫の数 × broodSpaceWeight をアリの数に足して目標を決める（13-4）
+        float broodMouths = 0f;
+        var broodSettings = broodField != null ? broodField.Settings : null;
+        if (broodField != null && broodSettings != null)
+            broodMouths = broodField.LarvaCount * broodSettings.broodSpaceWeight;
+
+        TargetCavityCells = Mathf.RoundToInt((totalAnts + broodMouths) * cellsPerAnt);
 
         if (TargetCavityCells <= 0 || CavityCells >= TargetCavityCells)
         {

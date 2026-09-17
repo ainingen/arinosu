@@ -78,6 +78,10 @@ public class BroodField : MonoBehaviour
     public int LarvaCount { get; private set; }
     /// <summary>まわりに仲間がいない子どもの割合（S_nurse に使う）。</summary>
     public float IsolatedRatio { get; private set; }
+    /// <summary>これまでに幼虫へ口移しした回数（育児が回っているかの目安）。</summary>
+    public int FeedCount { get; private set; }
+    /// <summary>これまでに幼虫へ流した量の合計。</summary>
+    public float FedTotal { get; private set; }
 
     private void Awake()
     {
@@ -171,7 +175,7 @@ public class BroodField : MonoBehaviour
                 larvae++;
                 hungerSum += item.Hunger;
             }
-            if (deposit)
+            if (deposit && item.carriedBy == null)
             {
                 Deposit(item);
                 if (IsIsolated(item)) isolated++;
@@ -243,6 +247,52 @@ public class BroodField : MonoBehaviour
     }
 
     /// <summary>
+    /// そのマスを中心に、半径 radius マスの中にある子どもの数（運ばれている分は数えない）。
+    /// 集積の規則（13-6）の「まわりの混み具合」に使う。
+    /// </summary>
+    public int CountNear(int cellX, int cellY, int radius)
+    {
+        int count = 0;
+        for (int dy = -radius; dy <= radius; dy++)
+        {
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                List<BroodItem> list = GetAtCell(cellX + dx, cellY + dy);
+                if (list == null) continue;
+                for (int i = 0; i < list.Count; i++) if (list[i].carriedBy == null) count++;
+            }
+        }
+        return count;
+    }
+
+    /// <summary>
+    /// そのマスにある子どもを1個持ち上げる（行動モデル.md 13-6）。
+    /// 置かれているマスの情報は持ったままにして、置くときに書き換える。
+    /// </summary>
+    public BroodItem PickUp(int cellX, int cellY, Ant carrier)
+    {
+        List<BroodItem> list = GetAtCell(cellX, cellY);
+        if (list == null || carrier == null) return null;
+
+        for (int i = list.Count - 1; i >= 0; i--)
+        {
+            if (list[i].carriedBy != null) continue;
+            list[i].carriedBy = carrier;
+            Version++;
+            return list[i];
+        }
+        return null;
+    }
+
+    /// <summary>持っている子どもを、そのマスへ置く。</summary>
+    public void PutDown(BroodItem item, int cellX, int cellY)
+    {
+        if (item == null) return;
+        item.carriedBy = null;
+        MoveTo(item, cellX, cellY);
+    }
+
+    /// <summary>
     /// 幼虫に口移しで食べさせる（行動モデル.md 13-2）。実際に入った量を返す。
     /// もらった量の growthPerCrop 倍だけ体が育つ。
     /// </summary>
@@ -254,6 +304,8 @@ public class BroodField : MonoBehaviour
 
         item.crop += accepted;
         item.starveDays = 0f;
+        FeedCount++;
+        FedTotal += accepted;
         item.size = Mathf.Clamp01(item.size + accepted * settings.growthPerCrop);
         return accepted;
     }

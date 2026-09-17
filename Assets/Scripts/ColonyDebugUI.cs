@@ -101,9 +101,10 @@ public class ColonyDebugUI : MonoBehaviour
                 + "／幼虫 " + brood.CountOf(BroodStage.Larva)
                 + "／繭 " + brood.CountOf(BroodStage.Pupa)
                 + "／羽化 " + brood.HatchedCount + "匹");
-            sb.Append("　幼虫の空腹の平均＝" + brood.LarvaHungerAverage.ToString("0.00")
+            sb.AppendLine("　幼虫の空腹の平均＝" + brood.LarvaHungerAverage.ToString("0.00")
                 + "／はぐれ " + (brood.IsolatedRatio * 100f).ToString("0") + "%"
                 + "／幼虫の餓死 累計 " + brood.BroodDeaths + "匹");
+            sb.Append("　給餌 累計 " + brood.FeedCount + "回／" + brood.FedTotal.ToString("0.0"));
         }
         return sb.ToString();
     }

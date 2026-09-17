@@ -56,6 +56,10 @@ public class BroodSettings : ScriptableObject
     public float feedAmount = 0.2f;
     [Tooltip("これより空腹な幼虫を、給餌の相手として探す")]
     [Range(0f, 1f)] public float larvaHungerThreshold = 0.2f;
+    [Tooltip("育児係はここまで社会胃を分ける。体の蓄えがあるので空に近くてよい")]
+    [Range(0f, 1f)] public float nurseMinCrop = 0.02f;
+    [Tooltip("持ち帰った餌を子どもへ直接配るとき、この濃さ以上の空腹の匂いを感じていれば向かう")]
+    public float deliverHungerMin = 0.05f;
     [Tooltip("給餌の相手を見つけられる範囲（cm）")]
     public float broodSenseRange = 1.5f;
     [Tooltip("相手が見つからないまま歩き続けたら、巣の仕事に戻るまでの時間（秒）")]
@@ -74,6 +78,20 @@ public class BroodSettings : ScriptableObject
     public float larvaHungerDeposit = 1f;
     [Tooltip("匂いを置き直す間隔（ゲーム内秒）")]
     public float depositInterval = 0.1f;
+
+    [Header("集積（行動モデル.md 13-6）")]
+    [Tooltip("はぐれた子どもほど拾いやすくなる。小さいほど拾いにくい")]
+    public float kPick = 0.3f;
+    [Tooltip("子どもが多い場所ほど置きやすくなる。小さいほど置きやすい")]
+    public float kDrop = 0.3f;
+    [Tooltip("まわりの子どもを数える範囲（マス）")]
+    public int broodSenseRadius = 2;
+    [Tooltip("この数で「まわりが子どもでいっぱい」とみなす")]
+    public float broodFull = 8f;
+    [Tooltip("持ったままこれだけ経ったら、その場に置く（秒）")]
+    public float carryGiveUpSeconds = 30f;
+    [Tooltip("巣の広さの目標に、幼虫1匹をアリ何匹分として数えるか")]
+    public float broodSpaceWeight = 0.5f;
 
     [Header("新しく羽化した働きアリ")]
     [Range(0f, 1f)] public float newAdultCrop = 0.5f;

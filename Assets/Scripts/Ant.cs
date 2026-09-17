@@ -76,15 +76,18 @@ public class Ant : MonoBehaviour
 
     // ---- 社会胃と閾値（行動モデル.md 2章・4章・6章）----
     /// <summary>社会胃の中身。1で満腹</summary>
-    private float crop = 1f;
+    // エディタで実行中にスクリプトを組み直すと、保存されない値は消えてしまう。
+    // 社会胃・体の蓄え・閾値・寿命は測定の土台なので、持ち越せるようにしてある
+    // （Inspector には出さない。調整する値ではないため）
+    [HideInInspector, SerializeField] private float crop = 1f;
     /// <summary>体の蓄え（脂肪体）。社会胃が空になってから使う。口移しでは分けない</summary>
-    private float reserve;
+    [HideInInspector, SerializeField] private float reserve;
     /// <summary>社会胃の初期値が外から指定されたか（羽化した個体）</summary>
     private bool cropOverridden;
     /// <summary>仲間へ配るために持ち帰っている分</summary>
     private float carryLoad;
     /// <summary>仕事ごとの閾値（腰の重さ）。学習で動く（行動モデル.md 12-2）</summary>
-    private readonly float[] theta = new float[ThetaCount];
+    [HideInInspector, SerializeField] private float[] theta = new float[ThetaCount];
     /// <summary>判定する順番（毎回混ぜる）</summary>
     private readonly int[] thetaOrder = { ThetaExplore, ThetaDig, ThetaNurse };
     private const int ThetaExplore = 0;
@@ -107,6 +110,10 @@ public class Ant : MonoBehaviour
     private float nurseSearchTimer;
     /// <summary>今まさに幼虫へ食べさせたところか（気持ちの表示に使う）</summary>
     private bool feedingNow;
+    /// <summary>運んでいる子ども（いなければ null）</summary>
+    private BroodItem carriedBrood;
+    /// <summary>子どもを持ってからの時間。長すぎたらその場に置く</summary>
+    private float carryBroodTimer;
 
     // ---- 女王（行動モデル.md 13-1）----
     /// <summary>女王が歩いている残り時間。0 のあいだはその場から動かない</summary>
@@ -129,7 +136,7 @@ public class Ant : MonoBehaviour
 
     // ---- 寿命（行動モデル.md 13-10）----
     /// <summary>この日齢になったら寿命で死ぬ。女王は死なない（段階5）</summary>
-    private float lifespanDays = float.MaxValue;
+    [HideInInspector, SerializeField] private float lifespanDays = float.MaxValue;
 
     /// <summary>女王か。</summary>
     public bool IsQueen => caste == AntCaste.Queen;
@@ -217,6 +224,7 @@ public class Ant : MonoBehaviour
             // 巣の外にいて、巣の匂いがほとんど届いていない
             if (!isInNest && nestHere < settings.nestFar) return AntMood.FarFromNest;
             if (task == AntTask.Dig) return AntMood.Digging;
+            if (carriedBrood != null) return AntMood.CarryingBrood;
             if (task == AntTask.Nurse) return feedingNow ? AntMood.Feeding : AntMood.SeekingHungryBrood;
             if (task == AntTask.Explore && lastFollowProbability > settings.moodFollowThreshold) return AntMood.FollowingTrail;
             if (task == AntTask.Explore) return AntMood.Searching;
@@ -249,6 +257,9 @@ public class Ant : MonoBehaviour
 
     private void Awake()
     {
+        // 保存された配列の長さが合わないことがあるので、ここで整える
+        if (theta == null || theta.Length != ThetaCount) theta = new float[ThetaCount];
+
         if (grid == null) grid = FindFirstObjectByType<SoilGrid>();
         if (view == null) view = GetComponent<AntView>();
         if (pheromones == null) pheromones = FindFirstObjectByType<PheromoneField>();
@@ -269,6 +280,8 @@ public class Ant : MonoBehaviour
     private void OnDisable()
     {
         all.Remove(this);
+        // 運んでいた子どもを持ったまま消えないように、その場へ置く
+        DropBroodHere();
         // 交換の途中で消えたら、相手を解放しておく
         EndShare();
     }
@@ -293,12 +306,8 @@ public class Ant : MonoBehaviour
             // 体の蓄えは個体ごとにばらつかせる。一斉に尽きるのを避ける
             reserve = Random.Range(settings.startReserveMin, settings.startReserveMax);
 
-            // 若いほど閾値が高い＝外へ出にくい。これが齢間分業になる
-            theta[ThetaExplore] = Mathf.Clamp(1f - AgeDays / Mathf.Max(0.0001f, settings.matureDays), 0.15f, 0.95f);
-            // 掘削は内勤と外勤の中間なので、日齢では決めず一定値から始める
-            theta[ThetaDig] = settings.thetaDigInitial;
-            // 育児も今は一定値から始める（日齢の曲線にするのは段階5b-2）
-            theta[ThetaNurse] = settings.thetaNurseInitial;
+            // 仕事ごとの「日齢の曲線」から始める。これが齢間分業になる（行動モデル.md 13-5）
+            for (int i = 0; i < ThetaCount; i++) theta[i] = AgeThreshold(i);
         }
 
         // 寿命を個体ごとにばらつかせる（女王は段階5では死なない）
@@ -411,6 +420,9 @@ public class Ant : MonoBehaviour
         // 触れられる距離に仲間がいて、持ち分に差があれば口移しが始まる
         if (TryStartSharing()) return;
 
+        // 持ち帰った分は、まず空腹の子どもと女王へ回す（行動モデル.md 4章）
+        if (carryLoad > 0f && TryDeliverLoad(tickTime)) return;
+
         // 空腹なら、いちばん近い仲間へ寄っていく（相手の中身は知らない。触れて差があれば流れる）
         float begThreshold = IsQueen && broodSettings != null
             ? broodSettings.queenBegThreshold
@@ -466,6 +478,45 @@ public class Ant : MonoBehaviour
         if (broodSettings == null) return;
         if (Random.value < broodSettings.queenWanderChance)
             queenWalkTimer = broodSettings.queenWanderSeconds;
+    }
+
+    /// <summary>
+    /// 持ち帰った餌（carryLoad）を、空腹の子どもと女王へ直接渡す（行動モデル.md 4章）。
+    ///
+    /// 餌が細るときほど、少ない持ち帰りが働きアリ同士で薄まる前に
+    /// 女王と幼虫へ届くようにするための道順。
+    /// 空腹の匂いを感じないか、持ち分を使い切ったら、従来どおりの口移しに戻る。
+    /// </summary>
+    private bool TryDeliverLoad(float tickTime)
+    {
+        if (broodField == null || broodSettings == null || pheromones == null) return false;
+
+        // まわりに空腹の匂いがなければ、わざわざ運ばない
+        if (pheromones.Sample(position, PheromoneLayer.LarvaHunger) < broodSettings.deliverHungerMin)
+            return false;
+
+        // 触れた相手が女王なら、そちらを優先して流す
+        if (TryStartSharing(true)) return true;
+
+        BroodItem larva = broodField.FindHungryLarva(position, broodSettings.broodSenseRange,
+            broodSettings.larvaHungerThreshold);
+        if (larva != null)
+        {
+            if (WithinContact(larva))
+            {
+                float given = broodField.Feed(larva, Mathf.Min(broodSettings.feedAmount, carryLoad));
+                carryLoad = Mathf.Max(0f, carryLoad - given);
+                feedingNow = true;
+                return true;
+            }
+            SteerTowardCell(larva.cellX, larva.cellY, tickTime);
+            return true;
+        }
+
+        // 空腹の匂いの濃い側へ登る
+        SteerAlongLarvaHunger(tickTime);
+        AddWanderNoise(tickTime, settings.wanderSigma * 0.5f);
+        return true;
     }
 
     /// <summary>今いるマスに空腹の匂いを置く（行動モデル.md 13-3 の larvaHunger 層）。</summary>
@@ -686,12 +737,13 @@ public class Ant : MonoBehaviour
     // ---- 口移し（行動モデル.md 4章）----
 
     /// <summary>触れられる距離の仲間と、持ち分に差があれば口移しを始める。</summary>
-    private bool TryStartSharing()
+    private bool TryStartSharing(bool queenOnly = false)
     {
         if (colony == null) return false;
 
         Ant other = colony.FindNearestNestmate(this, settings.contactRange);
         if (other == null || other.sharePartner != null || !other.isInNest) return false;
+        if (queenOnly && !other.IsQueen) return false;
 
         // 「自分の持ち分」と「相手の社会胃」を比べて、多いほうが渡す側になる
         float myTotal = crop + carryLoad;
@@ -896,6 +948,7 @@ public class Ant : MonoBehaviour
                 if (j == index) continue;
                 theta[j] = Mathf.Clamp(theta[j] + settings.thetaForget, settings.thetaMin, settings.thetaMax);
             }
+            ApplyAgeDrift();
             return;
         }
 
@@ -903,6 +956,43 @@ public class Ant : MonoBehaviour
         for (int i = 0; i < ThetaCount; i++)
         {
             theta[i] = Mathf.Clamp(theta[i] + settings.thetaForget, settings.thetaMin, settings.thetaMax);
+        }
+        ApplyAgeDrift();
+    }
+
+    /// <summary>
+    /// その日齢なら本来どれくらいの腰の重さか（行動モデル.md 13-5）。
+    /// 若いうちは育児に反応しやすく、年を取るほど外へ出やすい。
+    /// </summary>
+    private float AgeThreshold(int thetaIndex)
+    {
+        float t = Mathf.Clamp01(AgeDays / Mathf.Max(0.0001f, settings.matureDays));
+        switch (thetaIndex)
+        {
+            case ThetaDig:
+                // 掘削は内勤と外勤の中間なので、日齢では決めない
+                return settings.thetaDigInitial;
+            case ThetaNurse:
+                return Mathf.Clamp(
+                    Mathf.Lerp(settings.thetaNurseYoung, settings.thetaNurseOld, t), 0.1f, 0.9f);
+            default:
+                return Mathf.Clamp(1f - t, 0.15f, 0.95f);
+        }
+    }
+
+    /// <summary>
+    /// 学習で動いた閾値を、日齢の曲線へ少しだけ引き戻す（行動モデル.md 13-5）。
+    /// 若いうちに育児で固まった個体も、年を取れば徐々に外勤へ移る。
+    /// </summary>
+    private void ApplyAgeDrift()
+    {
+        float drift = settings.ageDrift;
+        if (drift <= 0f) return;
+
+        for (int i = 0; i < ThetaCount; i++)
+        {
+            theta[i] = Mathf.Clamp(Mathf.MoveTowards(theta[i], AgeThreshold(i), drift),
+                settings.thetaMin, settings.thetaMax);
         }
     }
 
@@ -953,6 +1043,13 @@ public class Ant : MonoBehaviour
         timeOutside = 0f;
         if (sharePartner != null) return;
 
+        // 子どもを持っているあいだは、置く場所を探すのが仕事になる
+        if (carriedBrood != null)
+        {
+            CarryBroodStep(tickTime, inside);
+            return;
+        }
+
         // 触れた相手と差があれば口移しは起きる。空腹の女王も同じ匂いを出すので、
         // 育児係が匂いをたどってたどり着き、接触して流れる（行動モデル.md 13-1）
         if (TryStartSharing()) return;
@@ -972,8 +1069,8 @@ public class Ant : MonoBehaviour
             return;
         }
 
-        // 自分が分けられるだけ持っていないなら、育児はいったんやめる
-        if (broodField == null || broodSettings == null || crop <= broodSettings.feedAmount)
+        // 分けられる分がなくなったら、育児はいったんやめる（体の蓄えは分けない）
+        if (broodField == null || broodSettings == null || crop <= broodSettings.nurseMinCrop)
         {
             task = AntTask.RestInNest;
             nurseSearchTimer = 0f;
@@ -982,16 +1079,165 @@ public class Ant : MonoBehaviour
 
         BroodItem larva = broodField.FindHungryLarva(position, broodSettings.broodSenseRange,
             broodSettings.larvaHungerThreshold);
-        if (larva != null && WithinContact(larva))
+        if (larva != null)
         {
-            FeedLarva(larva);
+            if (WithinContact(larva))
+            {
+                FeedLarva(larva);
+                return;
+            }
+            // 感知範囲に入っていれば、匂いではなく相手そのものへ寄っていく
+            SteerTowardCell(larva.cellX, larva.cellY, tickTime);
             return;
         }
         feedingNow = false;
 
-        // 相手が遠い、または見つからない：空腹の匂いの濃い側へ登る
-        SteerAlongLarvaHunger(tickTime);
+        // 感知範囲に空腹の幼虫がいないときだけ、はぐれた子どもを運ぶ（行動モデル.md 13-6）
+        if (TryPickBrood()) return;
+
+        SearchForBrood(tickTime);
+    }
+
+    /// <summary>そのマスへ向かって歩く（近くまで来て相手が分かっているとき）。</summary>
+    private void SteerTowardCell(int cellX, int cellY, float tickTime)
+    {
+        Vector2 target = grid.CellToWorld(cellX, cellY);
+        Vector2 to = target - position;
+        if (to.sqrMagnitude > 0.0001f) direction = to.normalized;
+        AddWanderNoise(tickTime, settings.wanderSigma * 0.3f);
+    }
+
+    /// <summary>
+    /// 世話する相手を探して歩く。
+    /// 空腹の匂いは薄く広がらないので、感じられるときだけ登り、
+    /// 感じられないときは巣の奥（子どもの塊ができやすい側）へ寄りながら探す。
+    /// </summary>
+    private void SearchForBrood(float tickTime)
+    {
+        float here = pheromones != null
+            ? pheromones.Sample(position, PheromoneLayer.LarvaHunger)
+            : 0f;
+
+        if (here > 0f) SteerAlongLarvaHunger(tickTime);
+        else SteerAlongNest(tickTime, true, settings.homingBias);
+
         AddWanderNoise(tickTime, settings.wanderSigma);
+    }
+
+    /// <summary>
+    /// はぐれた子どもを拾う（行動モデル.md 13-6）。
+    /// まわりに子どもが少ないマスほど拾いやすい。
+    /// </summary>
+    private bool TryPickBrood()
+    {
+        int x, y;
+        if (!grid.WorldToCell(position, out x, out y)) return false;
+
+        // 自分のマスと隣を見る
+        for (int i = 0; i < 5; i++)
+        {
+            int dx = i == 1 ? 1 : (i == 2 ? -1 : 0);
+            int dy = i == 3 ? 1 : (i == 4 ? -1 : 0);
+            int cx = x + dx;
+            int cy = y + dy;
+
+            var list = broodField.GetAtCell(cx, cy);
+            if (list == null || list.Count == 0) continue;
+
+            float f = Crowdedness(cx, cy);
+            float k = broodSettings.kPick;
+            float p = (k / (k + f)) * (k / (k + f));
+            if (Random.value >= p) continue;
+
+            carriedBrood = broodField.PickUp(cx, cy, this);
+            if (carriedBrood == null) continue;
+
+            carryBroodTimer = 0f;
+            carrying = CarryOf(carriedBrood.stage);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// 子どもを持って巣の中を歩き、子どもが多い場所ほど置きやすい（行動モデル.md 13-6）。
+    /// </summary>
+    private void CarryBroodStep(float tickTime, bool inside)
+    {
+        carryBroodTimer += tickTime;
+
+        int x, y;
+        bool hasCell = grid.WorldToCell(position, out x, out y);
+
+        // 長く持ちすぎたら、その場に置く。ただし巣の外には置かない
+        if (carryBroodTimer > broodSettings.carryGiveUpSeconds && hasCell && inside)
+        {
+            DropBrood(x, y);
+            return;
+        }
+
+        if (!inside)
+        {
+            SteerAlongNest(tickTime, true, settings.turnGain);
+            AddWanderNoise(tickTime, settings.wanderSigma * 0.5f);
+            return;
+        }
+
+        if (hasCell && grid.IsPassable(x, y))
+        {
+            float f = Crowdedness(x, y);
+            float k = broodSettings.kDrop;
+            float p = (f / (k + f)) * (f / (k + f));
+            if (Random.value < p)
+            {
+                DropBrood(x, y);
+                return;
+            }
+        }
+
+        // 置き場所を探して、巣の奥寄りを歩く
+        SteerAlongNest(tickTime, true, settings.homingBias);
+        AddWanderNoise(tickTime, settings.wanderSigma);
+    }
+
+    /// <summary>そのマスのまわりが子どもでどれくらい混んでいるか（0〜1）。</summary>
+    private float Crowdedness(int cellX, int cellY)
+    {
+        int near = broodField.CountNear(cellX, cellY, broodSettings.broodSenseRadius);
+        return Mathf.Clamp01(near / Mathf.Max(0.0001f, broodSettings.broodFull));
+    }
+
+    /// <summary>持っている子どもをそのマスへ置き、巣の仕事に戻る。</summary>
+    private void DropBrood(int cellX, int cellY)
+    {
+        broodField.PutDown(carriedBrood, cellX, cellY);
+        carriedBrood = null;
+        carryBroodTimer = 0f;
+        carrying = AntCarry.None;
+        task = AntTask.RestInNest;
+        nurseSearchTimer = 0f;
+    }
+
+    /// <summary>今いるマスに子どもを置く（消えるときに使う）。</summary>
+    private void DropBroodHere()
+    {
+        if (carriedBrood == null || grid == null || broodField == null) return;
+        int x, y;
+        if (grid.WorldToCell(position, out x, out y)) broodField.PutDown(carriedBrood, x, y);
+        else carriedBrood.carriedBy = null;
+        carriedBrood = null;
+        carrying = AntCarry.None;
+    }
+
+    /// <summary>運んでいるものの表示。</summary>
+    private static AntCarry CarryOf(BroodStage stage)
+    {
+        switch (stage)
+        {
+            case BroodStage.Egg: return AntCarry.Egg;
+            case BroodStage.Larva: return AntCarry.Larva;
+            default: return AntCarry.Cocoon;
+        }
     }
 
     /// <summary>諦めるまでの時間（設定がなければ既定値）。</summary>
@@ -1008,7 +1254,9 @@ public class Ant : MonoBehaviour
     /// <summary>幼虫に一定量を流す。流した分は自分の社会胃から引く。</summary>
     private void FeedLarva(BroodItem larva)
     {
-        float given = broodField.Feed(larva, Mathf.Min(broodSettings.feedAmount, crop));
+        // 社会胃は nurseMinCrop まで分けてよい（自分は体の蓄えでしのげる）
+        float spare = Mathf.Max(0f, crop - broodSettings.nurseMinCrop);
+        float given = broodField.Feed(larva, Mathf.Min(broodSettings.feedAmount, spare));
         crop = Mathf.Clamp01(crop - given);
         feedingNow = true;
 
@@ -1325,6 +1573,10 @@ public class Ant : MonoBehaviour
         if (!grid.WorldToCell(worldPosition, out x, out y)) return false;
         if (!grid.IsPassable(x, y)) return false;
         if (!grid.HasSolidNeighbor(x, y)) return false;
+
+        // 子どもを運んでいるあいだは巣から出ない（行動モデル.md 13-6）
+        if (carriedBrood != null && nestField != null
+            && nestField.Sample(worldPosition) < settings.nestInside) return false;
 
         // 女王は巣の奥から出ない（行動モデル.md 13-1）
         if (IsQueen && nestField != null)

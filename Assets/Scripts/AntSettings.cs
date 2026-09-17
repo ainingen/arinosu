@@ -153,8 +153,11 @@ public class AntSettings : ScriptableObject
     [Range(0.05f, 1f)] public float digShortfallRange = 0.5f;
     [Tooltip("掘削の閾値の初期値。日齢に依存しない一定値")]
     [Range(0f, 1f)] public float thetaDigInitial = 0.5f;
-    [Tooltip("育児の閾値の初期値。日齢の曲線にするのは段階5b-2")]
-    [Range(0f, 1f)] public float thetaNurseInitial = 0.5f;
+    [Tooltip("育児の閾値の日齢の曲線（行動モデル.md 13-5）。若いほど育児に反応しやすい")]
+    [Range(0f, 1f)] public float thetaNurseYoung = 0.1f;
+    [Range(0f, 1f)] public float thetaNurseOld = 0.9f;
+    [Tooltip("判断のたびに、閾値を日齢の曲線へ引き戻す量。0 なら学習しっぱなし")]
+    public float ageDrift = 0.01f;
 
     [Header("掘削：掘る場所（行動モデル.md 12-3）")]
     [Tooltip("どこでも掘る基礎の確率（知覚tickごと）")]

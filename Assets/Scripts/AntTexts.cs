@@ -60,6 +60,7 @@ public enum AntCarry
     Soil,
     Egg,
     Larva,
+    Cocoon,
     Corpse,
 }
 
@@ -94,6 +95,8 @@ public enum AntMood
     Feeding,
     /// <summary>育児：空腹の子どもを探している</summary>
     SeekingHungryBrood,
+    /// <summary>育児：子どもを運んでいる</summary>
+    CarryingBrood,
     /// <summary>女王：卵を産んだ直後</summary>
     QueenLaid,
     /// <summary>女王：空腹</summary>
@@ -192,6 +195,7 @@ public static class AntTexts
             case AntCarry.Soil: return "土";
             case AntCarry.Egg: return "卵";
             case AntCarry.Larva: return "幼虫";
+            case AntCarry.Cocoon: return "繭";
             case AntCarry.Corpse: return "仲間の死骸";
             default: return "－";
         }
@@ -238,6 +242,7 @@ public static class AntTexts
             case AntMood.CarryingSoil: return "土を外へ運ぶ";
             case AntMood.Feeding: return "この子に分けてやろう";
             case AntMood.SeekingHungryBrood: return "お腹をすかせた子がいる";
+            case AntMood.CarryingBrood: return "この子を安全な場所へ";
             case AntMood.QueenLaid: return "卵を産んだ";
             case AntMood.QueenHungry: return "お腹がすいた。誰か";
             case AntMood.QueenCalm: return "静かだ";

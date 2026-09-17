@@ -19,7 +19,7 @@ MonoBehaviour:
   queenWanderSeconds: 2
   queenNestBias: 3
   queenMinNest: 0.9
-  queenHungerDeposit: 1
+  queenHungerDeposit: 0.05
   layPerDay: 2
   layMinCrop: 0.5
   layCost: 0.05
@@ -33,14 +33,22 @@ MonoBehaviour:
   larvaStarveDays: 2
   feedAmount: 0.2
   larvaHungerThreshold: 0.2
+  nurseMinCrop: 0.02
+  deliverHungerMin: 0.05
   broodSenseRange: 1.5
   nurseGiveUpSeconds: 20
   larvaForageWeight: 0.5
   nurseHungerWeight: 0.7
   nurseIsolationWeight: 0.3
-  broodDeposit: 1
-  larvaHungerDeposit: 1
+  broodDeposit: 0.05
+  larvaHungerDeposit: 0.05
   depositInterval: 0.1
+  kPick: 0.3
+  kDrop: 0.3
+  broodSenseRadius: 2
+  broodFull: 8
+  carryGiveUpSeconds: 30
+  broodSpaceWeight: 0.5
   newAdultCrop: 0.5
   initialEggs: 8
   initialLarvae: 6

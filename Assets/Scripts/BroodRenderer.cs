@@ -25,6 +25,8 @@ public class BroodRenderer : MonoBehaviour
     [SerializeField] private float scatter = 0.25f;
     [Tooltip("幼虫がいちばん小さいとき（size = 0）の倍率")]
     [SerializeField, Range(0.05f, 1f)] private float larvaMinScale = 0.3f;
+    [Tooltip("運ばれている子どもを、運び手の前方どれだけに描くか（cm）")]
+    [SerializeField] private float mandibleOffset = 0.3f;
     [Tooltip("作り直す間隔（秒）。子どもの数が変わらなければ描き直さない")]
     [SerializeField] private float refreshInterval = 0.2f;
 
@@ -45,7 +47,8 @@ public class BroodRenderer : MonoBehaviour
 
         timer -= Time.unscaledDeltaTime;
         bool changed = broodField.Version != lastVersion;
-        if (!changed && timer > 0f) return;
+        // 運ばれている子どもは運び手について動くので、毎フレーム描き直す
+        if (!changed && timer > 0f && !HasCarried()) return;
 
         timer = refreshInterval;
         lastVersion = broodField.Version;
@@ -64,6 +67,18 @@ public class BroodRenderer : MonoBehaviour
         for (int i = 0; i < all.Count; i++)
         {
             BroodItem item = all[i];
+
+            // 運ばれている子どもは、マスの塊ではなく運び手の顎の先に描く
+            if (item.carriedBy != null)
+            {
+                SpriteRenderer carried = Take();
+                ApplyLook(carried, item);
+                Vector2 tip = item.carriedBy.Position
+                    + (Vector2)item.carriedBy.transform.up * mandibleOffset;
+                carried.transform.position = new Vector3(tip.x, tip.y, 0f);
+                continue;
+            }
+
             int key = item.cellY * grid.Width + item.cellX;
 
             int drawn;
@@ -117,6 +132,14 @@ public class BroodRenderer : MonoBehaviour
         renderer.transform.position = new Vector3(center.x, center.y, 0f);
         renderer.transform.localRotation = Quaternion.Euler(0f, 0f, item.drawAngle);
         renderer.transform.localScale = new Vector3(scale, scale, 1f);
+    }
+
+    /// <summary>運ばれている子どもがいるか。</summary>
+    private bool HasCarried()
+    {
+        var all = broodField.All;
+        for (int i = 0; i < all.Count; i++) if (all[i].carriedBy != null) return true;
+        return false;
     }
 
     /// <summary>使い回しのスプライトを1枚借りる。</summary>
