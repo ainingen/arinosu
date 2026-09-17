@@ -174,6 +174,20 @@ public class AntSettings : ScriptableObject
     public float digQueenGain = 0.05f;
     [Tooltip("女王のまわりとみなす距離（cm）")]
     public float queenRoomRadius = 2f;
+    [Tooltip("休んでいるアリの集まりのまわりを掘り広げる強さ（行動モデル.md 13-15）")]
+    public float digRestGain = 0.02f;
+    [Tooltip("部屋を広げる項は、左右の土をこの倍だけ掘りやすくする（横長の部屋になる）")]
+    public float roomHorizontalBias = 3f;
+    [Tooltip("部屋の大きさを見る範囲（cm）")]
+    public float roomRadius = 1.5f;
+    [Tooltip("この範囲の空洞がこれを超えたら、部屋を広げる項を止める")]
+    public int roomMaxCells = 60;
+
+    [Header("休む場所（行動モデル.md 13-15）")]
+    [Tooltip("外へ出慣れた個体（θ[Explore]が低い）が休む深さ。0＝入口、1＝いちばん奥")]
+    [Range(0f, 1f)] public float restDepthLow = 0.2f;
+    [Tooltip("内勤寄りの個体（θ[Explore]が高い）が休む深さ")]
+    [Range(0f, 1f)] public float restDepthHigh = 0.8f;
     [Tooltip("まわりの混み具合を数える範囲（cm）")]
     public float digCrowdRadius = 1.5f;
     [Tooltip("この匹数で混み具合が最大（1.0）になる")]

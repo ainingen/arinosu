@@ -19,6 +19,7 @@ MonoBehaviour:
   queenWanderSeconds: 2
   queenNestBias: 3
   queenMinNest: 0.9
+  queenDeepTolerance: 0.05
   queenHungerDeposit: 0.05
   layPerDay: 2
   layMinCrop: 0.5
@@ -59,4 +60,13 @@ MonoBehaviour:
   initialPupae: 4
   workerLifespanDays: 180
   lifespanVariation: 0.2
+  preferredDepthEgg: 0.9
+  preferredDepthLarva: 0.5
+  preferredDepthPupa: 0.2
+  preferredDepthTolerance: 0.15
+  youngLarvaSize: 0.3
+  mixPenalty: 0.7
+  roomSenseRadius: 2
+  roomBroodMin: 3
+  restRoomMin: 5
   maxDrawnPerCell: 4

@@ -73,7 +73,7 @@ MonoBehaviour:
   trailStimulusWeight: 0.5
   trailStimulusRadius: 3
   colonyUpdateInterval: 1
-  targetCellsPerAnt: 6
+  targetCellsPerAnt: 8
   digShortfallRange: 0.5
   thetaDigInitial: 0.5
   thetaNurseYoung: 0.1
@@ -85,6 +85,12 @@ MonoBehaviour:
   digBroodGain: 0.05
   digQueenGain: 0.05
   queenRoomRadius: 2
+  digRestGain: 0.02
+  roomHorizontalBias: 3
+  roomRadius: 1.5
+  roomMaxCells: 60
+  restDepthLow: 0.2
+  restDepthHigh: 0.8
   digCrowdRadius: 1.5
   digCrowdFull: 5
   digSeconds: 3
@@ -105,7 +111,7 @@ MonoBehaviour:
   larvaHungerDiffusion: 0.05
   larvaHungerMax: 10
   foodSpawnMode: 0
-  foodPerDay: 4
+  foodPerDay: 5
   foodIntervalJitter: 0.5
   foodAmountMin: 10
   foodAmountMax: 30

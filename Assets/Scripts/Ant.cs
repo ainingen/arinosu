@@ -489,7 +489,8 @@ public class Ant : MonoBehaviour
             }
         }
 
-        SteerAlongNest(tickTime, true, settings.homingBias);
+        if (inside) SteerTowardRestDepth(tickTime);
+        else SteerAlongNest(tickTime, true, settings.homingBias);
         AddWanderNoise(tickTime, settings.wanderSigma);
 
         // 外へ出るかどうかは DecisionStep（反応閾値）が決める
@@ -519,7 +520,7 @@ public class Ant : MonoBehaviour
         {
             queenWalkTimer -= tickTime;
             float bias = broodSettings != null ? broodSettings.queenNestBias : 1f;
-            SteerAlongNest(tickTime, true, settings.homingBias * bias);
+            SteerAlongDepth(tickTime, true, settings.homingBias * bias);
             AddWanderNoise(tickTime, settings.wanderSigma * 0.3f);
             return;
         }
@@ -529,7 +530,7 @@ public class Ant : MonoBehaviour
         // まだいちばん奥にいないなら、奥へ寄っていく（行動モデル.md 13-15）。
         // 巣が掘り広げられて最奥が移っても、女王はゆっくり付いていく
         if (nestField != null
-            && nestHere < nestField.MaxCavityValue - broodSettings.queenDeepTolerance)
+            && nestField.SampleDepth01(position) < 1f - broodSettings.queenDeepTolerance)
         {
             queenWalkTimer = broodSettings.queenWanderSeconds;
             return;
@@ -640,9 +641,19 @@ public class Ant : MonoBehaviour
         float probability = settings.digBase + settings.digCrowdGain * crowd;
         if (marker > 0f) probability += settings.digMarkerGain * (marker / markerMax);
 
-        // 子どもの塊のそばと女王のまわりは掘り広げられ、膨らみ（部屋）になる（13-7）
-        probability += settings.digBroodGain * BroodSmellAround(candidateX, candidateY);
-        probability += settings.digQueenGain * (NearQueen(candidateX, candidateY) ? 1f : 0f);
+        // 子どもの塊・女王・休んでいるアリのまわりは掘り広げられ、膨らみ（部屋）になる（13-7／13-15）
+        float room = settings.digBroodGain * BroodSmellAround(candidateX, candidateY)
+            + settings.digQueenGain * (NearQueen(candidateX, candidateY) ? 1f : 0f)
+            + settings.digRestGain * RestCrowdAround(candidateX, candidateY);
+
+        if (room > 0f)
+        {
+            // 大きくなりすぎた部屋は、それ以上広げない
+            if (RoomIsFull(candidateX, candidateY)) room = 0f;
+            // 左右の土を掘りやすくして、部屋を横長にする（トンネルの項には掛けない）
+            else if (candidateY == y) room *= settings.roomHorizontalBias;
+        }
+        probability += room;
 
         if (Random.value >= probability) return;
 
@@ -671,6 +682,36 @@ public class Ant : MonoBehaviour
 
         float scale = Mathf.Max(0.0001f, pheromones.GetMax(PheromoneLayer.Brood));
         return Mathf.Clamp01(max / scale);
+    }
+
+    /// <summary>その土のマスのそばで休んでいるアリの混み具合（0〜1。行動モデル.md 13-15）。</summary>
+    private float RestCrowdAround(int cellX, int cellY)
+    {
+        if (colony == null || grid == null || settings.digRestGain <= 0f) return 0f;
+        int resting = colony.CountRestingNear(grid.CellToWorld(cellX, cellY), settings.digCrowdRadius);
+        return Mathf.Clamp01(resting / Mathf.Max(0.0001f, settings.digCrowdFull));
+    }
+
+    /// <summary>
+    /// その土のマスのまわりが、部屋として十分広いか（行動モデル.md 13-15）。
+    /// 広ければ、部屋を広げる項を止める。トンネルを伸ばす項は止めない。
+    /// </summary>
+    private bool RoomIsFull(int cellX, int cellY)
+    {
+        if (grid == null) return false;
+
+        int radius = Mathf.CeilToInt(settings.roomRadius / grid.CellSize);
+        int open = 0;
+        for (int dy = -radius; dy <= radius; dy++)
+        {
+            for (int dx = -radius; dx <= radius; dx++)
+            {
+                if (dx * dx + dy * dy > radius * radius) continue;
+                if (grid.IsPassable(cellX + dx, cellY + dy)) open++;
+                if (open > settings.roomMaxCells) return true;
+            }
+        }
+        return false;
     }
 
     /// <summary>その土のマスが女王のそばか（行動モデル.md 13-7）。</summary>
@@ -1125,6 +1166,25 @@ public class Ant : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 休む場所を役割で変える（行動モデル.md 13-15）。
+    /// 外へ出慣れた個体（θ[Explore]が低い）は入口寄り、内勤寄りの個体は奥で休む。
+    /// 休んでいるアリの集まりが、そのまま部屋（休憩所）になる。
+    /// </summary>
+    private void SteerTowardRestDepth(float tickTime)
+    {
+        if (nestField == null)
+        {
+            SteerAlongNest(tickTime, true, settings.homingBias);
+            return;
+        }
+
+        float t = Mathf.InverseLerp(settings.thetaMin, settings.thetaMax, theta[ThetaExplore]);
+        float target = Mathf.Lerp(settings.restDepthLow, settings.restDepthHigh, t);
+        bool deeper = nestField.SampleDepth01(position) < target;
+        SteerAlongDepth(tickTime, deeper, settings.homingBias);
+    }
+
     // ---- 育児（行動モデル.md 13-4）----
 
     /// <summary>
@@ -1278,8 +1338,8 @@ public class Ant : MonoBehaviour
             if (list == null || list.Count == 0) continue;
 
             // そのマスでいちばん居場所の合っていない子どもを見る（行動モデル.md 13-15）
-            float nestHereValue = nestField != null ? nestField.GetAt(cx, cy) : 0f;
-            BroodItem candidate = broodField.LeastFitAt(cx, cy, nestHereValue);
+            float depthHere = nestField != null ? nestField.GetDepth01(cx, cy) : 0f;
+            BroodItem candidate = broodField.LeastFitAt(cx, cy, depthHere);
             if (candidate == null) continue;
 
             float f = Crowdedness(cx, cy, candidate.stage);
@@ -1287,7 +1347,7 @@ public class Ant : MonoBehaviour
             float p = (k / (k + f)) * (k / (k + f));
 
             // 好みの深さに合っている子どもは持ち上げない
-            p *= 1f - broodSettings.NestFit(candidate, nestHereValue);
+            p *= 1f - broodSettings.DepthFit(candidate, depthHere);
             if (Random.value >= p) continue;
 
             carriedBrood = broodField.PickUp(candidate, this);
@@ -1338,8 +1398,8 @@ public class Ant : MonoBehaviour
             float p = (fSame / (k + fSame)) * (fSame / (k + fSame));
 
             // 好みの深さでだけ置く。違う段階が混ざっている場所は避ける（13-15）
-            float nestHereValue = nestField != null ? nestField.GetAt(x, y) : 0f;
-            p *= broodSettings.NestFit(carriedBrood, nestHereValue);
+            float depthHere = nestField != null ? nestField.GetDepth01(x, y) : 0f;
+            p *= broodSettings.DepthFit(carriedBrood, depthHere);
             p *= 1f - broodSettings.mixPenalty * fOther;
 
             if (Random.value < p)
@@ -1378,9 +1438,9 @@ public class Ant : MonoBehaviour
             return;
         }
 
-        float preferred = broodSettings.PreferredNest(carriedBrood);
-        bool deeper = nestHere < preferred;
-        SteerAlongNest(tickTime, deeper, settings.turnGain);
+        float preferred = broodSettings.PreferredDepth(carriedBrood);
+        bool deeper = nestField.SampleDepth01(position) < preferred;
+        SteerAlongDepth(tickTime, deeper, settings.turnGain);
     }
 
     /// <summary>持っている子どもをそのマスへ置き、巣の仕事に戻る。</summary>
@@ -1442,6 +1502,21 @@ public class Ant : MonoBehaviour
         // 1回で満たなくても、いったん巣の仕事に戻って選び直す
         task = AntTask.RestInNest;
         nurseSearchTimer = 0f;
+    }
+
+    /// <summary>
+    /// 巣の深さ（入口からの経路距離の割合）の勾配に沿って曲がる（行動モデル.md 13-15）。
+    ///
+    /// 巣の匂いは深いところで 1.0 に張り付いて差がなくなるが、
+    /// 深さの割合はいちばん奥が常に 1 になるので、どれだけ掘り進んでも向きが分かる。
+    /// </summary>
+    private void SteerAlongDepth(float tickTime, bool deeper, float gain)
+    {
+        if (nestField == null) return;
+        Vector2 leftPoint, rightPoint;
+        GetSensorPoints(out leftPoint, out rightPoint);
+        SteerByGradient(nestField.SampleDepth01(leftPoint), nestField.SampleDepth01(rightPoint),
+            deeper, gain, tickTime);
     }
 
     /// <summary>幼虫の空腹の匂いの濃い側へ曲がる。</summary>

@@ -37,6 +37,33 @@ public class NestField : MonoBehaviour
     public float MaxCavityValue { get; private set; }
     /// <summary>入口からいちばん遠い空洞までの経路距離（マス）。深さの基準が効いているかの確認に使う。</summary>
     public int MaxCavityDistance { get; private set; }
+
+    /// <summary>
+    /// そのマスの深さ（0＝入口、1＝いちばん奥）。行動モデル.md 13-15。
+    ///
+    /// 巣の匂いは nestDeepDistance より深いとすべて 1.0 になって差がなくなるので、
+    /// 深さの好みと休む場所には「入口からの経路距離の割合」を使う。
+    /// 巣がどれだけ深くなっても、いちばん奥が 1 になるように伸び縮みする。
+    /// </summary>
+    public float GetDepth01(int x, int y)
+    {
+        EnsureBuilt();
+        if (grid == null || values == null) return 0f;
+        if (!grid.IsInside(x, y)) return 0f;
+        if (grid.GetCell(x, y) != CellType.Cavity) return 0f;
+
+        int max = Mathf.Max(1, MaxCavityDistance);
+        return Mathf.Clamp01((float)distances[y * width + x] / max);
+    }
+
+    /// <summary>世界の座標での深さ（0〜1）。</summary>
+    public float SampleDepth01(Vector2 worldPosition)
+    {
+        if (grid == null) return 0f;
+        int x, y;
+        if (!grid.WorldToCell(worldPosition, out x, out y)) return 0f;
+        return GetDepth01(x, y);
+    }
     /// <summary>層の中身（デバッグ表示用。書き換えないこと）。</summary>
     public float[] Values => values;
 

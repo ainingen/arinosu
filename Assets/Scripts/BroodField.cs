@@ -285,7 +285,7 @@ public class BroodField : MonoBehaviour
     }
 
     /// <summary>そのマスにある子どものうち、いまの居場所がいちばん合っていないもの。</summary>
-    public BroodItem LeastFitAt(int cellX, int cellY, float nestValue)
+    public BroodItem LeastFitAt(int cellX, int cellY, float depth01)
     {
         List<BroodItem> list = GetAtCell(cellX, cellY);
         if (list == null || settings == null) return null;
@@ -295,7 +295,7 @@ public class BroodField : MonoBehaviour
         for (int i = 0; i < list.Count; i++)
         {
             if (list[i].carriedBy != null) continue;
-            float fit = settings.NestFit(list[i], nestValue);
+            float fit = settings.DepthFit(list[i], depth01);
             if (fit >= worstFit) continue;
             worstFit = fit;
             worst = list[i];
