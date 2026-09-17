@@ -43,6 +43,10 @@ MonoBehaviour:
   broodDeposit: 0.05
   larvaHungerDeposit: 0.05
   depositInterval: 0.1
+  cannibalReserve: 0.2
+  cannibalMaxSize: 0.3
+  cannibalGainEgg: 0.15
+  cannibalGainLarva: 0.4
   kPick: 0.3
   kDrop: 0.3
   broodSenseRadius: 2

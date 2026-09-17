@@ -48,6 +48,7 @@ MonoBehaviour:
   startCropMax: 1
   fullToEmptyDays: 2
   movingMetabolism: 1.5
+  metabolismJitter: 0.2
   carryLoad: 1
   reserveFillAbove: 0.7
   reserveFillPerDay: 0.5
@@ -75,6 +76,9 @@ MonoBehaviour:
   targetCellsPerAnt: 6
   digShortfallRange: 0.5
   thetaDigInitial: 0.5
+  thetaNurseYoung: 0.1
+  thetaNurseOld: 0.9
+  ageDrift: 0.01
   digBase: 0.002
   digMarkerGain: 0.3
   digCrowdGain: 0.005
@@ -91,10 +95,15 @@ MonoBehaviour:
   moundMaxRoll: 8
   entranceKeepClear: 2
   dumpGiveUpSeconds: 20
+  broodHalfLife: 20
+  broodDiffusion: 0.05
+  broodMax: 10
   larvaHungerHalfLife: 10
   larvaHungerDiffusion: 0.05
   larvaHungerMax: 10
+  foodSpawnMode: 0
   foodPerDay: 4
+  foodIntervalJitter: 0.5
   foodAmountMin: 10
   foodAmountMax: 30
   foodLifetimeDays: 2
