@@ -41,10 +41,15 @@ public class FoodSource : MonoBehaviour
     private static int expiredCount;
     public static int ExpiredCount => expiredCount;
 
+    /// <summary>アリが食べた回数の累計（＝持ち帰りの回数）。</summary>
+    private static int takenCount;
+    public static int TakenCount => takenCount;
+
     /// <summary>数え上げを 0 に戻す（プレイ開始時に FoodSpawner から呼ぶ）。</summary>
-    public static void ResetExpiredCount()
+    public static void ResetCounters()
     {
         expiredCount = 0;
+        takenCount = 0;
     }
 
     /// <summary>残量（アリ何匹分か）。</summary>
@@ -110,6 +115,7 @@ public class FoodSource : MonoBehaviour
     {
         if (amount <= 0) return false;
         amount--;
+        takenCount++;
         if (amount <= 0)
         {
             Destroy(gameObject);

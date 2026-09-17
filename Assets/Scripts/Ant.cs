@@ -82,6 +82,8 @@ public class Ant : MonoBehaviour
     [HideInInspector, SerializeField] private float crop = 1f;
     /// <summary>体の蓄え（脂肪体）。社会胃が空になってから使う。口移しでは分けない</summary>
     [HideInInspector, SerializeField] private float reserve;
+    /// <summary>この個体の代謝の倍率。開始時に決めて変えない（行動モデル.md 4章）</summary>
+    [HideInInspector, SerializeField] private float metabolismScale = 1f;
     /// <summary>社会胃の初期値が外から指定されたか（羽化した個体）</summary>
     private bool cropOverridden;
     /// <summary>仲間へ配るために持ち帰っている分</summary>
@@ -305,6 +307,10 @@ public class Ant : MonoBehaviour
 
             // 体の蓄えは個体ごとにばらつかせる。一斉に尽きるのを避ける
             reserve = Random.Range(settings.startReserveMin, settings.startReserveMax);
+
+            // 代謝の速さも個体ごとに違う。谷で全員が同じ日に尽きるのを避ける
+            float jitter = settings.metabolismJitter;
+            metabolismScale = Random.Range(1f - jitter, 1f + jitter);
 
             // 仕事ごとの「日齢の曲線」から始める。これが齢間分業になる（行動モデル.md 13-5）
             for (int i = 0; i < ThetaCount; i++) theta[i] = AgeThreshold(i);
@@ -855,7 +861,7 @@ public class Ant : MonoBehaviour
         bool moving = movedSinceMetabolism > 0.01f;
         movedSinceMetabolism = 0f;
 
-        float multiplier = moving ? settings.movingMetabolism : 1f;
+        float multiplier = (moving ? settings.movingMetabolism : 1f) * metabolismScale;
         // 女王は産卵のぶん多く消費する
         if (IsQueen && broodSettings != null) multiplier *= broodSettings.queenMetabolism;
 

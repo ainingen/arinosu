@@ -38,6 +38,16 @@ public class FoodSpawner : MonoBehaviour
 
     private double nextSpawnDay;
 
+    // 「1日あたり」を出すための数え上げ（谷の原因が供給か発見かを切り分ける）
+    private double windowStartDay;
+    private int spawnedUnitsInWindow;
+    private int takenAtWindowStart;
+
+    /// <summary>直前の1日に地表へ出た餌の量（アリ何匹分か）。</summary>
+    public int SpawnedUnitsPerDay { get; private set; }
+    /// <summary>直前の1日にアリが食べた回数（＝持ち帰りの回数）。</summary>
+    public int TakenPerDay { get; private set; }
+
     /// <summary>地表の餌が上限に達しているか。</summary>
     public bool IsAtFoodLimit
     {
@@ -58,8 +68,9 @@ public class FoodSpawner : MonoBehaviour
 
     private void Start()
     {
-        // 「乾いて消えた数」はプレイのたびに数え直す（静的な数え上げなので明示的に戻す）
-        FoodSource.ResetExpiredCount();
+        // 数え上げはプレイのたびに戻す（静的なので明示的に）
+        FoodSource.ResetCounters();
+        if (clock != null) windowStartDay = clock.ElapsedDays;
 
         if (settings == null || foodPrefab == null) return;
 
@@ -73,11 +84,27 @@ public class FoodSpawner : MonoBehaviour
     private void Update()
     {
         if (settings == null || clock == null || foodPrefab == null) return;
+
+        UpdateDailyCounters();
+
         if (clock.ElapsedDays < nextSpawnDay) return;
 
         // 上限に達しているあいだは出さない（食べきれない餌が地表に積み上がるのを防ぐ）
         if (!IsAtFoodLimit) SpawnOne();
         ScheduleNext();
+    }
+
+    /// <summary>1日ぶんの数え上げを締めて、次の1日を始める。</summary>
+    private void UpdateDailyCounters()
+    {
+        if (clock.ElapsedDays < windowStartDay + 1.0) return;
+
+        SpawnedUnitsPerDay = spawnedUnitsInWindow;
+        TakenPerDay = FoodSource.TakenCount - takenAtWindowStart;
+
+        windowStartDay = clock.ElapsedDays;
+        spawnedUnitsInWindow = 0;
+        takenAtWindowStart = FoodSource.TakenCount;
     }
 
     /// <summary>次に餌が出る日を決める（指数分布）。</summary>
@@ -165,8 +192,11 @@ public class FoodSpawner : MonoBehaviour
         // そのマスの下辺（＝地面の表面）に置くと、地面にちょうど乗る
         Vector2 position = grid.CellToWorld(x, groundY);
         position.y -= grid.CellSize * 0.5f;
+        int amount = Random.Range(settings.foodAmountMin, settings.foodAmountMax + 1);
+        spawnedUnitsInWindow += amount;
+
         FoodSource food = Instantiate(foodPrefab, position, Quaternion.identity, foodParent);
-        food.Setup(Random.Range(settings.foodAmountMin, settings.foodAmountMax + 1), settings);
+        food.Setup(amount, settings);
         return food;
     }
 

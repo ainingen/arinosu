@@ -90,6 +90,8 @@ public class AntSettings : ScriptableObject
     public float fullToEmptyDays = 2f;
     [Tooltip("動いているときの消費の倍率")]
     public float movingMetabolism = 1.5f;
+    [Tooltip("個体ごとの代謝のばらつき（±の割合）。開始時と羽化時に決めて固定する")]
+    [Range(0f, 0.5f)] public float metabolismJitter = 0.2f;
     [Tooltip("餌を1回持ち帰るときの、配る元手の量")]
     public float carryLoad = 1f;
 

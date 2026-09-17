@@ -28,9 +28,9 @@ MonoBehaviour:
   pupaDays: 18
   stageDurationScale: 1
   larvaAlwaysFed: 0
-  larvaFullToEmptyDays: 1
+  larvaFullToEmptyDays: 3
   growthPerCrop: 0.35
-  larvaStarveDays: 2
+  larvaStarveDays: 4
   feedAmount: 0.2
   larvaHungerThreshold: 0.2
   nurseMinCrop: 0.02

@@ -183,8 +183,16 @@ public class ColonyDebugUI : MonoBehaviour
             if (nearest < 0f || distance < nearest) nearest = distance;
         }
 
+        string daily = "";
+        var spawner = FindFirstObjectByType<FoodSpawner>();
+        if (spawner != null)
+        {
+            daily = "\n　1日あたり：出た " + spawner.SpawnedUnitsPerDay
+                + "／持ち帰り " + spawner.TakenPerDay + "回";
+        }
+
         return "餌：地表に " + foods.Count + "個／合計残量 " + total
             + "／最寄り " + (nearest < 0f ? "－" : nearest.ToString("0.0") + "cm")
-            + "／乾いて消えた " + FoodSource.ExpiredCount;
+            + "／乾いて消えた " + FoodSource.ExpiredCount + daily;
     }
 }
